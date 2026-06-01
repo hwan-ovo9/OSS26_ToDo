@@ -1,6 +1,7 @@
 # requirement: PyQt5
 # pip install PyQt5
 
+import os
 import sys
 import json
 
@@ -362,6 +363,9 @@ class ReminderApp(QWidget):
 
         self.todos = []
 
+        # 자동 저장 파일
+        self.auto_save_file = "todo_data.json"
+
         # 수정 모드용 변수
         self.editing_todo = None
 
@@ -377,6 +381,9 @@ class ReminderApp(QWidget):
         """)
 
         self.init_ui()
+
+        # 자동 불러오기
+        self.auto_load_data()
 
     # ============================================
     # UI
@@ -979,6 +986,61 @@ class ReminderApp(QWidget):
             "불러왔습니다."
         )
 
+    # ============================================
+    # 자동 저장
+    # ============================================
+
+    def auto_save_data(self):
+
+        with open(
+            self.auto_save_file,
+            "w",
+            encoding="utf-8"
+        ) as f:
+
+            json.dump(
+                self.todos,
+                f,
+                ensure_ascii=False,
+                indent=4
+            )
+
+    # ============================================
+    # 자동 불러오기
+    # ============================================
+
+    def auto_load_data(self):
+
+        if not os.path.exists(
+            self.auto_save_file
+        ):
+            return
+
+        try:
+
+            with open(
+                self.auto_save_file,
+                "r",
+                encoding="utf-8"
+            ) as f:
+
+                self.todos = json.load(f)
+
+            self.refresh_list()
+
+        except Exception as e:
+
+            print("자동 불러오기 실패:", e)
+
+    # ============================================
+    # 종료 이벤트
+    # ============================================
+
+    def closeEvent(self, event):
+
+        self.auto_save_data()
+
+        event.accept()
 
 # ============================================
 # 실행
