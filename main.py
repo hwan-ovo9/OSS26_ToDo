@@ -11,7 +11,9 @@ from PyQt5.QtCore import (
     Qt,
     QDate,
     QTime,
+    QTimer
 )
+
 from PyQt5.QtGui import QFont
 
 from PyQt5.QtWidgets import (
@@ -40,7 +42,6 @@ from PyQt5.QtWidgets import (
 # ============================================
 
 class TodoItemWidget(QFrame):
-
     def __init__(
         self,
         todo_data,
@@ -65,11 +66,11 @@ class TodoItemWidget(QFrame):
             }
         """)
 
-        self.setMinimumHeight(120)
+        self.setMinimumHeight(160)
 
         from PyQt5.QtWidgets import QSizePolicy
 
-        self.setFixedHeight(120)
+        self.setFixedHeight(160)
 
         self.setSizePolicy(
             QSizePolicy.Expanding,
@@ -185,7 +186,8 @@ class TodoItemWidget(QFrame):
         status_icon = {
             "진행 전": "🕓",
             "진행 중": "⏳",
-            "완료": "✅"
+            "완료": "✅",
+            "지연": "🚨"
         }
 
         status_label = QLabel(
@@ -226,6 +228,114 @@ class TodoItemWidget(QFrame):
         meta_layout.addStretch()
 
         text_layout.addLayout(meta_layout)
+
+        # ============================================
+        # 알림 기능 관련
+        # ============================================
+        from PyQt5.QtWidgets import QProgressBar
+
+        self.progress = QProgressBar()
+
+        try:
+
+            created = datetime.strptime(
+                todo_data["created_at"],
+                "%Y-%m-%d %H:%M:%S"
+            )
+
+        except:
+
+            created = datetime.now()
+
+        deadline = datetime.strptime(
+            todo_data["deadline"],
+            "%Y-%m-%d %H:%M"
+        )
+
+        now = datetime.now()
+
+        total_seconds = (
+                deadline - created
+        ).total_seconds()
+
+        remain_seconds = (
+                deadline - now
+        ).total_seconds()
+
+        text_layout.addWidget(self.progress)
+
+        if remain_seconds <= 0:
+            percent = 0
+
+        elif total_seconds <= 0:
+            percent = 100
+
+        else:
+            ratio = remain_seconds / total_seconds
+
+            # 긴박감 증가
+            percent = int((ratio ** 2) * 100)
+
+        percent = max(0, min(percent, 100))
+
+        if percent > 60:
+            color = "#34c759"  # 초록
+
+        elif percent > 30:
+            color = "#ffcc00"  # 노랑
+
+        elif percent > 10:
+            color = "#ff9500"  # 주황
+
+        else:
+            color = "#ff3b30"  # 빨강
+
+        self.progress.setValue(percent)
+
+        self.progress.setTextVisible(False)
+
+        self.progress.setFixedHeight(12)
+
+        self.progress.setStyleSheet(f"""
+        QProgressBar {{
+            border:none;
+            background:#e5e5ea;
+            border-radius:6px;
+        }}
+
+        QProgressBar::chunk {{
+            background:{color};
+            border-radius:6px;
+        }}
+        """)
+
+        if remain_seconds <= 0:
+
+            remain_text = "🚨 마감 초과"
+
+        else:
+
+            hours = int(remain_seconds // 3600)
+            minutes = int(
+                (remain_seconds % 3600) // 60
+            )
+
+            remain_text = (
+                f"⏰ {hours}시간 "
+                f"{minutes}분 남음"
+            )
+
+        self.countdown_label = QLabel(
+            remain_text
+        )
+
+        self.countdown_label.setStyleSheet("""
+            color:#8e8e93;
+            font-size:11px;
+            font-weight:bold;
+        """)
+
+        text_layout.addWidget(self.countdown_label)
 
         # ============================================
         # 수정 버튼
@@ -310,6 +420,108 @@ class TodoItemWidget(QFrame):
 
         self.update_style()
 
+        self.update_progress()
+
+    def update_progress(self):
+
+        try:
+
+            created = datetime.strptime(
+                self.todo_data["created_at"],
+                "%Y-%m-%d %H:%M:%S"
+            )
+
+        except:
+
+            created = datetime.now()
+
+        deadline = datetime.strptime(
+            self.todo_data["deadline"],
+            "%Y-%m-%d %H:%M"
+        )
+
+        now = datetime.now()
+
+        total_seconds = (
+                deadline - created
+        ).total_seconds()
+
+        remain_seconds = (
+                deadline - now
+        ).total_seconds()
+
+        if remain_seconds <= 0:
+
+            percent = 0
+
+        elif total_seconds <= 0:
+
+            percent = 100
+
+        else:
+
+            ratio = remain_seconds / total_seconds
+
+            percent = int(
+                (ratio ** 2) * 100
+            )
+
+        percent = max(
+            0,
+            min(percent, 100)
+        )
+
+        self.progress.setValue(percent)
+
+        if percent > 60:
+            color = "#34c759"
+
+        elif percent > 30:
+            color = "#ffcc00"
+
+        elif percent > 10:
+            color = "#ff9500"
+
+        else:
+            color = "#ff3b30"
+
+        self.progress.setStyleSheet(f"""
+        QProgressBar {{
+            border:none;
+            background:#e5e5ea;
+            border-radius:6px;
+        }}
+
+        QProgressBar::chunk {{
+            background:{color};
+            border-radius:6px;
+        }}
+        """)
+
+        if remain_seconds <= 0:
+
+            self.countdown_label.setText(
+                "🚨 마감 초과"
+            )
+
+        else:
+
+            hours = int(
+                remain_seconds // 3600
+            )
+
+            minutes = int(
+                (remain_seconds % 3600) // 60
+            )
+
+            second = int(
+                (remain_seconds % 3600) % 60
+            )
+
+            self.countdown_label.setText(
+                f"⏰ {hours}시간 {minutes}분 {second}초 남음"
+            )
+
     # ============================================
     # 완료 체크
     # ============================================
@@ -383,7 +595,6 @@ class TodoItemWidget(QFrame):
 
         self.delete_callback(self)
 
-
 # ============================================
 # Main Window
 # ============================================
@@ -394,6 +605,11 @@ class ReminderApp(QWidget):
         super().__init__()
 
         self.todos = []
+        #알림 관련
+        self.todo_widgets = []
+
+        #중복 알림 방지용
+        self.notified = set()
 
         self.selected_time = QTime.currentTime()
 
@@ -425,8 +641,24 @@ class ReminderApp(QWidget):
 
         self.init_ui()
 
-        # 자동 불러오기
         self.auto_load_data()
+
+        # 알림 타이머
+        self.reminder_timer = QTimer()
+
+        self.reminder_timer.timeout.connect(
+            self.check_reminders
+        )
+
+        self.reminder_timer.start(60000)
+
+        self.refresh_timer = QTimer()
+
+        self.refresh_timer.timeout.connect(
+            self.auto_refresh
+        )
+
+        self.refresh_timer.start(1000)
 
     # ============================================
     # UI
@@ -743,6 +975,8 @@ class ReminderApp(QWidget):
 
     def refresh_list(self):
 
+        self.todo_widgets.clear()
+
         while self.todo_layout.count():
 
             item = self.todo_layout.takeAt(0)
@@ -849,9 +1083,9 @@ class ReminderApp(QWidget):
                         self.edit_todo
                     )
 
-                    self.todo_layout.addWidget(
-                        widget
-                    )
+                    self.todo_widgets.append(widget)
+
+                    self.todo_layout.addWidget(widget)
 
         # ============================================
         # 완료됨 섹션
@@ -900,6 +1134,7 @@ class ReminderApp(QWidget):
                         self.edit_todo
                     )
 
+                    self.todo_widgets.append(widget)
                     self.todo_layout.addWidget(widget)
 
                 self.todo_layout.addStretch()
@@ -949,6 +1184,10 @@ class ReminderApp(QWidget):
 
         todo_data = {
             "title": title,
+
+            "created_at": datetime.now().strftime(
+                "%Y-%m-%d %H:%M:%S"
+            ),
 
             "deadline":
                 self.date_input.date().toString("yyyy-MM-dd")
@@ -1230,6 +1469,98 @@ class ReminderApp(QWidget):
                 f"🕒 {self.selected_time.toString('HH:mm')}"
             )
 
+    # ============================================
+    # 알림 검사 함수
+    # ============================================
+    def check_reminders(self):
+
+        now = datetime.now()
+
+        for todo in self.todos:
+
+            if todo["completed"]:
+                continue
+
+            deadline = datetime.strptime(
+                todo["deadline"],
+                "%Y-%m-%d %H:%M"
+            )
+
+            remain = (
+                    deadline - now
+            ).total_seconds()
+
+            # 마감 초과 자동 처리
+            if remain < 0 and not todo["completed"]:
+
+                if todo["status"] != "지연":
+                    todo["status"] = "지연"
+
+                    self.auto_save_data()
+
+            title = todo["title"]
+
+            # 30분 전
+            if 1700 <= remain <= 1800:
+
+                key = (
+                    title,
+                    "30"
+                )
+
+                if key not in self.notified:
+                    QMessageBox.information(
+                        self,
+                        "알림",
+                        f"[30분 전]\n\n{title}"
+                    )
+
+                    self.notified.add(key)
+
+            # 10분 전
+            elif 500 <= remain <= 600:
+
+                key = (
+                    title,
+                    "10"
+                )
+
+                if key not in self.notified:
+                    QMessageBox.information(
+                        self,
+                        "알림",
+                        f"[10분 전]\n\n{title}"
+                    )
+
+                    self.notified.add(key)
+
+            # 1분 전
+            elif 0 <= remain <= 60:
+
+                key = (
+                    title,
+                    "1"
+                )
+
+                if key not in self.notified:
+                    QMessageBox.warning(
+                        self,
+                        "알림",
+                        f"[1분 전]\n\n{title}"
+                    )
+
+                    self.notified.add(key)
+
+    # ============================================
+    # 자동 갱신
+    # ============================================
+
+    def auto_refresh(self):
+
+        for widget in self.todo_widgets:
+            widget.update_progress()
+
+
 # ============================================================================
 # 시간 선택 팝업 클래스 06.02 - 환
 # ============================================================================
@@ -1364,10 +1695,16 @@ def new_add_or_update(self):
     if title and self.editing_todo is None:
         todo_data = {
             "title": title,
+
+            "created_at": datetime.now().strftime(
+                "%Y-%m-%d %H:%M:%S"
+            ),
+
             "deadline":
                 self.date_input.date().toString("yyyy-MM-dd")
                 + " " +
                 self.selected_time.toString("HH:mm"),
+
             "priority": self.priority_input.currentText(),
             "category": self.category_input.currentText(),
             "status": self.status_input.currentText(),
