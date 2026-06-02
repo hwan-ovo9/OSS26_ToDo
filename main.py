@@ -1042,6 +1042,117 @@ class ReminderApp(QWidget):
 
         event.accept()
 
+
+# ============================================================================
+# 메모장 기능 확장 및 실행 06.01 - 이지오
+# ============================================================================
+from PyQt5.QtWidgets import QDialog, QTextEdit
+
+
+# 1. 메모장 팝업 창
+class MemoDialog(QDialog):
+    def __init__(self, title, current_memo, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(f"📋 메모 - {title}")
+        self.resize(400, 450)
+        self.setStyleSheet("QDialog { background: #f2f2f7; }")
+
+        layout = QVBoxLayout()
+        layout.setContentsMargins(16, 16, 16, 16)
+
+        label = QLabel("내용을 입력하고 완료를 누르거나 창을 닫으면 저장됩니다.")
+        label.setFont(QFont("맑은 고딕", 10))
+        label.setStyleSheet("color: #8e8e93; margin-bottom: 4px;")
+        layout.addWidget(label)
+
+        self.text_edit = QTextEdit()
+        self.text_edit.setFont(QFont("맑은 고딕", 12))
+        self.text_edit.setText(current_memo)
+        self.text_edit.setStyleSheet("""
+            QTextEdit {
+                background: white;
+                border: none;
+                border-radius: 14px;
+                padding: 12px;
+            }
+        """)
+        layout.addWidget(self.text_edit)
+
+        close_btn = QPushButton("완료")
+        close_btn.setFixedHeight(40)
+        close_btn.setStyleSheet("""
+            QPushButton {
+                background: #007aff; color: white; border: none;
+                border-radius: 12px; font-size: 14px; font-weight: bold; margin-top: 8px;
+            }
+            QPushButton:hover { background: #3395ff; }
+        """)
+        close_btn.clicked.connect(self.accept)
+        layout.addWidget(close_btn)
+        self.setLayout(layout)
+
+    def get_text(self):
+        return self.text_edit.toPlainText()
+
+
+# 2. 기존 TodoItemWidget에 추가 (더블클릭 및 메모 아이콘 고정)
+original_init = TodoItemWidget.__init__
+
+
+def new_init(self, todo_data, delete_callback, edit_callback):
+    original_init(self, todo_data, delete_callback, edit_callback)
+
+    # 처음부터 제목 뒤에 📝 이모지가 항상 붙어있도록 설정
+    if not self.title.text().endswith(" 📝"):
+        self.title.setText(todo_data["title"] + " 📝")
+
+    # 마우스 커서를 손가락 모양으로 변경하여 클릭 가능함을 안내
+    self.title.setCursor(Qt.PointingHandCursor)
+    self.title.setToolTip("더블클릭하여 메모장을 엽니다.")
+
+    # 더블클릭 이벤트 연결
+    self.title.mouseDoubleClickEvent = lambda event: open_memo_window(self)
+
+
+TodoItemWidget.__init__ = new_init
+
+# 3. 기존 ReminderApp 기능 확장 (새 데이터 생성 시 기본 메모 공간 할당)
+original_add_or_update = ReminderApp.add_or_update_todo
+
+
+def new_add_or_update(self):
+    title = self.title_input.text().strip()
+    if title and self.editing_todo is None:
+        todo_data = {
+            "title": title,
+            "deadline": self.date_input.date().toString("yyyy-MM-dd"),
+            "priority": self.priority_input.currentText(),
+            "category": self.category_input.currentText(),
+            "status": self.status_input.currentText(),
+            "completed": False,
+            "memo": ""
+        }
+        self.todos.append(todo_data)
+        self.clear_inputs()
+        self.refresh_list()
+    else:
+        original_add_or_update(self)
+
+
+ReminderApp.add_or_update_todo = new_add_or_update
+
+
+# 4. 메모 창을 열고 데이터를 저장하는 핵심 로직 함수
+def open_memo_window(widget):
+    todo_data = widget.todo_data
+    if "memo" not in todo_data:
+        todo_data["memo"] = ""
+
+    dialog = MemoDialog(todo_data["title"], todo_data["memo"], widget.window())
+    if dialog.exec_():
+        todo_data["memo"] = dialog.get_text()
+
+
 # ============================================
 # 실행
 # ============================================
