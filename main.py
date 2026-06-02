@@ -58,7 +58,16 @@ class TodoItemWidget(QFrame):
             }
         """)
 
-        self.setMinimumHeight(90)
+        self.setMinimumHeight(120)
+
+        from PyQt5.QtWidgets import QSizePolicy
+
+        self.setFixedHeight(120)
+
+        self.setSizePolicy(
+            QSizePolicy.Expanding,
+            QSizePolicy.Fixed
+        )
 
         # ============================================
         # 메인 레이아웃
@@ -308,11 +317,21 @@ class TodoItemWidget(QFrame):
 
     def toggle_complete(self):
 
-        self.todo_data["completed"] = (
-            self.check.isChecked()
-        )
+        checked = self.check.isChecked()
+
+        self.todo_data["completed"] = checked
+
+        if checked:
+            self.todo_data["status"] = "완료"
+
+        elif self.todo_data["status"] == "완료":
+            self.todo_data["status"] = "진행 전"
 
         self.update_style()
+
+        self.window().refresh_list()
+
+        self.window().auto_save_data()
 
     # ============================================
     # 스타일
@@ -322,12 +341,26 @@ class TodoItemWidget(QFrame):
 
         if self.check.isChecked():
 
+            self.setStyleSheet("""
+                QFrame {
+                    background:#e5e5ea;
+                    border-radius:22px;
+                }
+            """)
+
             self.title.setStyleSheet("""
                 color:#9e9ea4;
                 text-decoration: line-through;
             """)
 
         else:
+
+            self.setStyleSheet("""
+                QFrame {
+                    background:white;
+                    border-radius:22px;
+                }
+            """)
 
             self.title.setStyleSheet("""
                 color:black;
@@ -368,6 +401,15 @@ class ReminderApp(QWidget):
 
         # 수정 모드용 변수
         self.editing_todo = None
+
+        # 그룹 펼침 상태
+        self.group_states = {
+            "초과": True,
+            "오늘": True,
+            "내일": True,
+            "모레": True,
+            "완료됨": False
+        }
 
         self.setWindowTitle("Reminder")
 
@@ -627,6 +669,8 @@ class ReminderApp(QWidget):
 
         self.setLayout(main_layout)
 
+        self.todo_layout.setAlignment(Qt.AlignTop)
+
     # ============================================
     # 그룹명
     # ============================================
@@ -692,12 +736,27 @@ class ReminderApp(QWidget):
 
         self.sort_todos()
 
-        grouped = {}
+        active_todos = []
+        completed_todos = []
 
         for todo in self.todos:
 
+            if todo["completed"]:
+                completed_todos.append(todo)
+
+            else:
+                active_todos.append(todo)
+
+        grouped = {}
+
+        for todo in active_todos:
+
             group_name = self.get_group_name(
                 todo["deadline"]
+            )
+
+            self.ensure_group_state(
+                group_name
             )
 
             if group_name not in grouped:
@@ -732,47 +791,124 @@ class ReminderApp(QWidget):
         # 그룹 UI
         for group_name in ordered_groups:
 
-            section = QLabel(group_name)
-
-            section.setFont(
-                QFont(
-                    "맑은 고딕",
-                    24,
-                    QFont.Bold
-                )
+            is_open = self.group_states.get(
+                group_name,
+                True
             )
 
-            if group_name == "초과":
+            arrow = "▼" if is_open else "▶"
 
-                section.setStyleSheet("""
-                    color:#ff3b30;
-                    margin-top:12px;
-                """)
+            section = QPushButton(
+                f"{arrow} {group_name} ({len(grouped[group_name])})"
+            )
 
-            else:
+            section.clicked.connect(
+                lambda checked,
+                       g=group_name:
+                self.toggle_group(g)
+            )
 
-                section.setStyleSheet("""
-                    color:black;
-                    margin-top:12px;
-                """)
+            section.setStyleSheet("""
+                QPushButton{
+                    background:white;
+                    border:none;
+                    border-radius:18px;
+                    text-align:left;
+                    padding:14px;
+                    font-size:20px;
+                    font-weight:bold;
+                }
+            """)
+
+            self.todo_layout.addWidget(section)
+
+            if is_open:
+
+                for todo in grouped[group_name]:
+                    widget = TodoItemWidget(
+                        todo,
+                        self.delete_todo,
+                        self.edit_todo
+                    )
+
+                    self.todo_layout.addWidget(
+                        widget
+                    )
+
+        # ============================================
+        # 완료됨 섹션
+        # ============================================
+
+        if completed_todos:
+
+            is_open = self.group_states.get(
+                "완료됨",
+                False
+            )
+
+            arrow = "▼" if is_open else "▶"
+
+            completed_btn = QPushButton(
+                f"{arrow} 완료됨 ({len(completed_todos)})"
+            )
+
+            completed_btn.clicked.connect(
+                lambda:
+                self.toggle_group("완료됨")
+            )
+
+            completed_btn.setStyleSheet("""
+                QPushButton{
+                    background:white;
+                    border:none;
+                    border-radius:18px;
+                    text-align:left;
+                    padding:14px;
+                    font-size:18px;
+                    font-weight:bold;
+                }
+            """)
 
             self.todo_layout.addWidget(
-                section
+                completed_btn
             )
 
-            for todo in grouped[group_name]:
+            if is_open:
 
-                widget = TodoItemWidget(
-                    todo,
-                    self.delete_todo,
-                    self.edit_todo
-                )
+                for todo in completed_todos:
+                    widget = TodoItemWidget(
+                        todo,
+                        self.delete_todo,
+                        self.edit_todo
+                    )
 
-                self.todo_layout.addWidget(
-                    widget
-                )
+                    self.todo_layout.addWidget(
+                        widget
+                    )
 
-        self.todo_layout.addStretch()
+                    self.todo_layout.addStretch()
+
+    # ============================================
+    # 완료 항목 접기 / 펼치기
+    # ============================================
+
+    def toggle_group(self, group_name):
+
+        current = self.group_states.get(
+            group_name,
+            True
+        )
+
+        self.group_states[group_name] = (
+            not current
+        )
+
+        self.refresh_list()
+
+    def ensure_group_state(self, group_name):
+
+        if group_name not in self.group_states:
+            self.group_states[group_name] = True
 
     # ============================================
     # 추가 / 수정
@@ -839,6 +975,7 @@ class ReminderApp(QWidget):
         self.clear_inputs()
 
         self.refresh_list()
+        self.auto_save_data()
 
     # ============================================
     # 수정 시작
@@ -918,6 +1055,7 @@ class ReminderApp(QWidget):
             )
 
             self.refresh_list()
+            self.auto_save_data()
 
     # ============================================
     # 저장
@@ -1151,6 +1289,7 @@ def open_memo_window(widget):
     dialog = MemoDialog(todo_data["title"], todo_data["memo"], widget.window())
     if dialog.exec_():
         todo_data["memo"] = dialog.get_text()
+        widget.window().auto_save_data()
 
 
 # ============================================
