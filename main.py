@@ -317,14 +317,20 @@ class TodoItemWidget(QFrame):
 
     def toggle_complete(self):
 
-        self.todo_data["completed"] = (
-            self.check.isChecked()
-        )
+        checked = self.check.isChecked()
+
+        self.todo_data["completed"] = checked
+
+        if checked:
+            self.todo_data["status"] = "완료"
+
+        elif self.todo_data["status"] == "완료":
+            self.todo_data["status"] = "진행 전"
 
         self.update_style()
 
-        # 부모 화면 갱신
         self.window().refresh_list()
+
         self.window().auto_save_data()
 
     # ============================================
