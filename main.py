@@ -522,6 +522,26 @@ class TodoItemWidget(QFrame):
                 f"⏰ {hours}시간 {minutes}분 {second}초 남음"
             )
 
+        if percent > 60:
+            card_bg = "#ffffff"
+
+        elif percent > 30:
+            card_bg = "#fff9e6"
+
+        elif percent > 10:
+            card_bg = "#fff1e6"
+
+        else:
+            card_bg = "#ffeaea"
+
+        if not self.check.isChecked():
+            self.setStyleSheet(f"""
+                QFrame {{
+                    background:{card_bg};
+                    border-radius:22px;
+                }}
+            """)
+
     # ============================================
     # 완료 체크
     # ============================================
