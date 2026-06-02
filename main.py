@@ -30,6 +30,8 @@ from PyQt5.QtWidgets import (
     QDateEdit,
     QScrollArea,
     QTimeEdit,
+    QDialog,
+    QTextEdit
 )
 
 
@@ -393,6 +395,8 @@ class ReminderApp(QWidget):
 
         self.todos = []
 
+        self.selected_time = QTime.currentTime()
+
         # 자동 저장 파일
         self.auto_save_file = "todo_data.json"
 
@@ -514,14 +518,14 @@ class ReminderApp(QWidget):
 
         self.date_input.setCalendarPopup(True)
 
-        self.time_input = QTimeEdit()
+        self.time_btn = QPushButton()
 
-        self.time_input.setTime(
-            QTime.currentTime()
+        self.time_btn.setText(
+            f"🕒 {self.selected_time.toString('HH:mm')}"
         )
 
-        self.time_input.setDisplayFormat(
-            "HH:mm"
+        self.time_btn.clicked.connect(
+            self.open_time_picker
         )
 
         self.date_input.setCalendarPopup(True)
@@ -550,7 +554,7 @@ class ReminderApp(QWidget):
 
         for widget in [
             self.date_input,
-            self.time_input,
+            self.time_btn,
             self.priority_input,
             self.category_input,
             self.status_input
@@ -567,7 +571,7 @@ class ReminderApp(QWidget):
         )
 
         option_layout.addWidget(
-            self.time_input
+            self.time_btn
         )
 
         option_layout.addWidget(
@@ -949,7 +953,7 @@ class ReminderApp(QWidget):
             "deadline":
                 self.date_input.date().toString("yyyy-MM-dd")
                 + " " +
-                self.time_input.time().toString("HH:mm"),
+                self.selected_time.toString("HH:mm"),
 
             "priority":
                 self.priority_input.currentText(),
@@ -1015,11 +1019,13 @@ class ReminderApp(QWidget):
             )
         )
 
-        self.time_input.setTime(
-            QTime(
-                date.hour,
-                date.minute
-            )
+        self.selected_time = QTime(
+            date.hour,
+            date.minute
+        )
+
+        self.time_btn.setText(
+            f"🕒 {self.selected_time.toString('HH:mm')}"
         )
 
         self.priority_input.setCurrentText(
@@ -1049,8 +1055,10 @@ class ReminderApp(QWidget):
             QDate.currentDate()
         )
 
-        self.time_input.setTime(
-            QTime.currentTime()
+        self.selected_time = QTime.currentTime()
+
+        self.time_btn.setText(
+            f"🕒 {self.selected_time.toString('HH:mm')}"
         )
 
         self.priority_input.setCurrentIndex(0)
@@ -1204,6 +1212,75 @@ class ReminderApp(QWidget):
 
         event.accept()
 
+    # ============================================
+    # 시간 선택 함수
+    # ============================================
+
+    def open_time_picker(self):
+
+        dialog = TimePickerDialog(
+            self.selected_time,
+            self
+        )
+
+        if dialog.exec_():
+            self.selected_time = dialog.get_time()
+
+            self.time_btn.setText(
+                f"🕒 {self.selected_time.toString('HH:mm')}"
+            )
+
+# ============================================================================
+# 시간 선택 팝업 클래스 06.02 - 환
+# ============================================================================
+
+
+class TimePickerDialog(QDialog):
+
+    def __init__(self, current_time, parent=None):
+        super().__init__(parent)
+
+        self.setWindowTitle("시간 선택")
+
+        layout = QVBoxLayout()
+
+        self.hour_spin = QComboBox()
+        self.minute_spin = QComboBox()
+
+        for i in range(24):
+            self.hour_spin.addItem(f"{i:02d}")
+
+        for i in range(60):
+            self.minute_spin.addItem(f"{i:02d}")
+
+        self.hour_spin.setCurrentText(
+            current_time.toString("HH")
+        )
+
+        self.minute_spin.setCurrentText(
+            current_time.toString("mm")
+        )
+
+        layout.addWidget(QLabel("시"))
+        layout.addWidget(self.hour_spin)
+
+        layout.addWidget(QLabel("분"))
+        layout.addWidget(self.minute_spin)
+
+        ok_btn = QPushButton("확인")
+        ok_btn.clicked.connect(self.accept)
+
+        layout.addWidget(ok_btn)
+
+        self.setLayout(layout)
+
+    def get_time(self):
+
+        return QTime(
+            int(self.hour_spin.currentText()),
+            int(self.minute_spin.currentText())
+        )
+
 
 # ============================================================================
 # 메모장 기능 확장 및 실행 06.01 - 이지오
@@ -1290,7 +1367,7 @@ def new_add_or_update(self):
             "deadline":
                 self.date_input.date().toString("yyyy-MM-dd")
                 + " " +
-                self.time_input.time().toString("HH:mm"),
+                self.selected_time.toString("HH:mm"),
             "priority": self.priority_input.currentText(),
             "category": self.category_input.currentText(),
             "status": self.status_input.currentText(),
