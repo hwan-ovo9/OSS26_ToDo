@@ -7,7 +7,11 @@ import json
 
 from datetime import datetime
 
-from PyQt5.QtCore import Qt, QDate
+from PyQt5.QtCore import (
+    Qt,
+    QDate,
+    QTime,
+)
 from PyQt5.QtGui import QFont
 
 from PyQt5.QtWidgets import (
@@ -25,6 +29,7 @@ from PyQt5.QtWidgets import (
     QCheckBox,
     QDateEdit,
     QScrollArea,
+    QTimeEdit,
 )
 
 
@@ -129,14 +134,6 @@ class TodoItemWidget(QFrame):
         text_layout = QVBoxLayout()
 
         text_layout.setSpacing(4)
-
-        self.title = QLabel(
-            todo_data["title"]
-        )
-
-        self.title.setFont(
-            QFont("맑은 고딕", 15, QFont.Bold)
-        )
 
         # ============================================
         # 제목
@@ -517,6 +514,18 @@ class ReminderApp(QWidget):
 
         self.date_input.setCalendarPopup(True)
 
+        self.time_input = QTimeEdit()
+
+        self.time_input.setTime(
+            QTime.currentTime()
+        )
+
+        self.time_input.setDisplayFormat(
+            "HH:mm"
+        )
+
+        self.date_input.setCalendarPopup(True)
+
         self.priority_input = QComboBox()
         self.priority_input.addItems([
             "낮음",
@@ -541,6 +550,7 @@ class ReminderApp(QWidget):
 
         for widget in [
             self.date_input,
+            self.time_input,
             self.priority_input,
             self.category_input,
             self.status_input
@@ -554,6 +564,10 @@ class ReminderApp(QWidget):
 
         option_layout.addWidget(
             self.date_input
+        )
+
+        option_layout.addWidget(
+            self.time_input
         )
 
         option_layout.addWidget(
@@ -681,7 +695,7 @@ class ReminderApp(QWidget):
 
         deadline = datetime.strptime(
             deadline_str,
-            "%Y-%m-%d"
+            "%Y-%m-%d %H:%M"
         ).date()
 
         diff = (
@@ -715,7 +729,7 @@ class ReminderApp(QWidget):
         self.todos.sort(
             key=lambda x: datetime.strptime(
                 x["deadline"],
-                "%Y-%m-%d"
+                "%Y-%m-%d %H:%M"
             )
         )
 
@@ -882,11 +896,9 @@ class ReminderApp(QWidget):
                         self.edit_todo
                     )
 
-                    self.todo_layout.addWidget(
-                        widget
-                    )
+                    self.todo_layout.addWidget(widget)
 
-                    self.todo_layout.addStretch()
+                self.todo_layout.addStretch()
 
     # ============================================
     # 완료 항목 접기 / 펼치기
@@ -935,8 +947,9 @@ class ReminderApp(QWidget):
             "title": title,
 
             "deadline":
-                self.date_input.date()
-                .toString("yyyy-MM-dd"),
+                self.date_input.date().toString("yyyy-MM-dd")
+                + " " +
+                self.time_input.time().toString("HH:mm"),
 
             "priority":
                 self.priority_input.currentText(),
@@ -991,7 +1004,7 @@ class ReminderApp(QWidget):
 
         date = datetime.strptime(
             todo["deadline"],
-            "%Y-%m-%d"
+            "%Y-%m-%d %H:%M"
         )
 
         self.date_input.setDate(
@@ -999,6 +1012,13 @@ class ReminderApp(QWidget):
                 date.year,
                 date.month,
                 date.day
+            )
+        )
+
+        self.time_input.setTime(
+            QTime(
+                date.hour,
+                date.minute
             )
         )
 
@@ -1027,6 +1047,10 @@ class ReminderApp(QWidget):
 
         self.date_input.setDate(
             QDate.currentDate()
+        )
+
+        self.time_input.setTime(
+            QTime.currentTime()
         )
 
         self.priority_input.setCurrentIndex(0)
@@ -1263,7 +1287,10 @@ def new_add_or_update(self):
     if title and self.editing_todo is None:
         todo_data = {
             "title": title,
-            "deadline": self.date_input.date().toString("yyyy-MM-dd"),
+            "deadline":
+                self.date_input.date().toString("yyyy-MM-dd")
+                + " " +
+                self.time_input.time().toString("HH:mm"),
             "priority": self.priority_input.currentText(),
             "category": self.category_input.currentText(),
             "status": self.status_input.currentText(),
@@ -1273,6 +1300,7 @@ def new_add_or_update(self):
         self.todos.append(todo_data)
         self.clear_inputs()
         self.refresh_list()
+        self.auto_save_data()
     else:
         original_add_or_update(self)
 
