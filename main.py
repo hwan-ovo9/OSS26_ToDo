@@ -1767,3 +1767,79 @@ if __name__ == "__main__":
     window.show()
 
     sys.exit(app.exec_())
+
+# 시간설정 기능 및 정렬
+
+from datetime import datetime
+
+# 할 일 목록을 저장할 리스트
+todo_list = []
+
+def add_task():
+    print("\n--- [새로운 할 일 추가] ---")
+title = input("할 일 내용을 입력하세요: ")
+
+# 1. 마감일 입력 (YYYY-MM-DD 형식)
+date_input = input("마감일을 입력하세요 (예: 2026-06-05): ")
+
+# 2. 마감 시간 입력 (HH:MM 형식) - 질문하신 시간 설정 기능
+time_input = input("마감 시간을 입력하세요 (예: 15:30): ")
+
+# 3. 예상 소요 시간 입력 (시간 단위)
+try:
+    estimated_hours = float(input("예상 소요 시간(시간 단위)을 입력하세요 (예: 2.5): "))
+except ValueError:
+    print("❌ 숫자로만 입력해주세요. 0으로 설정됩니다.")
+estimated_hours = 0.0
+
+try:
+# 입력받은 날짜와 시간을 하나의 datetime 객체로 결합
+    deadline_str = f"{date_input} {time_input}"
+    deadline_dt = datetime.strptime(deadline_str, "%Y-%m-%d %H:%M")
+
+# 딕셔너리 형태로 할 일 저장
+    task = {
+"title": title,
+"deadline": deadline_dt,
+"estimated_hours": estimated_hours,
+"completed": False
+}
+    todo_list.append(task)
+    print(f"✅ '{title}' 항목이 추가되었습니다.")
+
+except ValueError:
+    print("❌ 날짜나 시간 형식이 올바르지 않습니다. 다시 시도해주세요. (형식: YYYY-MM-DD / HH:MM)")
+
+def show_tasks():
+    if not todo_list:
+        print("\n등록된 할 일이 없습니다.")
+    return
+
+# 마감일(deadline) 기준으로 자동 정렬 (가장 가까운 마감일이 위로)
+# '마감일 기반 자동 정렬' 로직에 대입
+sorted_list = sorted(todo_list, key=lambda x: x["deadline"])
+
+print("\n--- [할 일 목록 (마감일 순 정렬)] ---")
+for idx, task in enumerate(sorted_list, start=1):
+    status = "[완료]" if task["completed"] else "[진행중]"
+# 출력할 때 보기 좋게 포맷팅
+deadline_display = task["deadline"].strftime("%Y-%m-%d %H:%M")
+print(f"{idx}. {status} {task['title']}")
+print(f" - 마감일시: {deadline_display}")
+print(f" - 예상 소요 시간: {task['estimated_hours']}시간")
+print("-" * 35)
+
+# 간단한 프로그램 실행 루프
+while True:
+        print("\n1. 할 일 추가 | 2. 할 일 목록 보기 | 3. 종료")
+        choice = input("원하는 메뉴를 선택하세요: ")
+
+        if choice == "1":
+            add_task()
+        elif choice == "2":
+            show_tasks()
+        elif choice == "3":
+            print("프로그램을 종료합니다.")
+            break
+        else:
+            print("올바른 번호를 선택해주세요.")
