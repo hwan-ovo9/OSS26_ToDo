@@ -1753,6 +1753,311 @@ def open_memo_window(widget):
         todo_data["memo"] = dialog.get_text()
         widget.window().auto_save_data()
 
+# ============================================================================
+# 집중 타이머 기능 추가(6월 3일) - 우상민
+# ============================================================================
+from PyQt5.QtWidgets import QSpinBox, QProgressBar
+from PyQt5.QtCore import QTimer
+
+class TimerDialog(QDialog):
+    """시/분/초를 설정하고 시작, 일시정지, 초기화할 수 있는 타이머 팝업"""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+        self.setWindowTitle("⏱ 집중 타이머")
+        self.resize(460, 380)
+
+        # 타이머 상태값
+        self.total_seconds = 0
+        self.remaining_seconds = 0
+        self.is_running = False
+
+        # 1초마다 update_timer 실행
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.update_timer)
+
+        self.setStyleSheet("""
+            QDialog {
+                background:#f2f2f7;
+                font-family:'맑은 고딕';
+            }
+
+            QLabel {
+                color:#1c1c1e;
+            }
+
+            QSpinBox {
+                background:white;
+                border:none;
+                border-radius:12px;
+                padding:10px;
+                font-size:16px;
+            }
+
+            QPushButton {
+                color:white;
+                border:none;
+                border-radius:14px;
+                font-size:15px;
+                font-weight:bold;
+                padding:10px;
+            }
+
+            QProgressBar {
+                border:none;
+                background:#e5e5ea;
+                border-radius:10px;
+                height:18px;
+            }
+
+            QProgressBar::chunk {
+                background:#34c759;
+                border-radius:10px;
+            }
+        """)
+
+        self.init_ui()
+        self.update_input_time()
+
+    def init_ui(self):
+        main_layout = QVBoxLayout()
+        main_layout.setContentsMargins(24, 24, 24, 24)
+        main_layout.setSpacing(18)
+
+        title = QLabel("⏱ 집중 타이머")
+        title.setFont(QFont("맑은 고딕", 24, QFont.Bold))
+        title.setStyleSheet("color:#ff3b30;")
+        main_layout.addWidget(title)
+
+        # 시간 입력 영역
+        input_layout = QHBoxLayout()
+
+        self.hour_spin = QSpinBox()
+        self.hour_spin.setRange(0, 23)
+        self.hour_spin.setSuffix(" 시간")
+
+        self.minute_spin = QSpinBox()
+        self.minute_spin.setRange(0, 59)
+        self.minute_spin.setSuffix(" 분")
+        self.minute_spin.setValue(25)
+
+        self.second_spin = QSpinBox()
+        self.second_spin.setRange(0, 59)
+        self.second_spin.setSuffix(" 초")
+
+        input_layout.addWidget(self.hour_spin)
+        input_layout.addWidget(self.minute_spin)
+        input_layout.addWidget(self.second_spin)
+
+        main_layout.addLayout(input_layout)
+
+        # 남은 시간 표시
+        self.time_label = QLabel("00:25:00")
+        self.time_label.setAlignment(Qt.AlignCenter)
+        self.time_label.setFont(QFont("맑은 고딕", 34, QFont.Bold))
+        self.time_label.setStyleSheet("""
+            QLabel {
+                background:white;
+                color:#ff3b30;
+                border-radius:20px;
+                padding:20px;
+            }
+        """)
+        main_layout.addWidget(self.time_label)
+
+        # 진행률 표시
+        self.progress = QProgressBar()
+        self.progress.setValue(0)
+        self.progress.setTextVisible(False)
+        main_layout.addWidget(self.progress)
+
+        # 버튼 영역
+        button_layout = QHBoxLayout()
+
+        self.start_btn = QPushButton("시작")
+        self.pause_btn = QPushButton("일시정지")
+        self.reset_btn = QPushButton("초기화")
+
+        self.start_btn.setStyleSheet("""
+            QPushButton { background:#007aff; }
+            QPushButton:hover { background:#3395ff; }
+        """)
+        self.pause_btn.setStyleSheet("""
+            QPushButton { background:#ff9500; }
+            QPushButton:hover { background:#ffaa33; }
+        """)
+        self.reset_btn.setStyleSheet("""
+            QPushButton { background:#ff3b30; }
+            QPushButton:hover { background:#ff5c52; }
+        """)
+
+        self.start_btn.clicked.connect(self.start_timer)
+        self.pause_btn.clicked.connect(self.pause_timer)
+        self.reset_btn.clicked.connect(self.reset_timer)
+
+        button_layout.addWidget(self.start_btn)
+        button_layout.addWidget(self.pause_btn)
+        button_layout.addWidget(self.reset_btn)
+
+        main_layout.addLayout(button_layout)
+        self.setLayout(main_layout)
+
+        # 입력값 변경 시 대기 화면 갱신
+        self.hour_spin.valueChanged.connect(self.update_input_time)
+        self.minute_spin.valueChanged.connect(self.update_input_time)
+        self.second_spin.valueChanged.connect(self.update_input_time)
+
+    def update_input_time(self):
+        """사용자가 입력한 시/분/초 값을 남은 시간에 반영"""
+        if self.is_running:
+            return
+
+        hours = self.hour_spin.value()
+        minutes = self.minute_spin.value()
+        seconds = self.second_spin.value()
+
+        self.total_seconds = hours * 3600 + minutes * 60 + seconds
+        self.remaining_seconds = self.total_seconds
+
+        self.update_display()
+
+    def start_timer(self):
+        """타이머 시작"""
+        if self.remaining_seconds <= 0:
+            QMessageBox.warning(
+                self,
+                "경고",
+                "타이머 시간을 1초 이상 설정하세요."
+            )
+            return
+
+        self.is_running = True
+        self.hour_spin.setEnabled(False)
+        self.minute_spin.setEnabled(False)
+        self.second_spin.setEnabled(False)
+        self.timer.start(1000)
+
+    def pause_timer(self):
+        """타이머 일시정지"""
+        self.timer.stop()
+        self.is_running = False
+
+    def reset_timer(self):
+        """타이머 초기화"""
+        self.timer.stop()
+        self.is_running = False
+
+        self.hour_spin.setEnabled(True)
+        self.minute_spin.setEnabled(True)
+        self.second_spin.setEnabled(True)
+
+        self.update_input_time()
+        self.progress.setValue(0)
+
+    def update_timer(self):
+        """1초마다 남은 시간을 감소시키고 화면을 갱신"""
+        if self.remaining_seconds > 0:
+            self.remaining_seconds -= 1
+            self.update_display()
+
+        if self.remaining_seconds <= 0:
+            self.timer.stop()
+            self.is_running = False
+
+            self.hour_spin.setEnabled(True)
+            self.minute_spin.setEnabled(True)
+            self.second_spin.setEnabled(True)
+
+            QMessageBox.information(
+                self,
+                "타이머 종료",
+                "설정한 시간이 끝났습니다!"
+            )
+
+    def update_display(self):
+        """남은 시간과 진행률 화면 갱신"""
+        hours = self.remaining_seconds // 3600
+        minutes = (self.remaining_seconds % 3600) // 60
+        seconds = self.remaining_seconds % 60
+
+        self.time_label.setText(
+            f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+        )
+
+        if self.total_seconds > 0:
+            progress_value = int(
+                ((self.total_seconds - self.remaining_seconds)
+                 / self.total_seconds) * 100
+            )
+        else:
+            progress_value = 0
+
+        self.progress.setValue(progress_value)
+
+
+# ============================================================================
+# ReminderApp 메인 화면에 타이머 버튼 추가
+# ============================================================================
+
+def open_focus_timer(self):
+    dialog = TimerDialog(self)
+    dialog.exec_()
+
+
+ReminderApp.open_focus_timer = open_focus_timer
+
+
+# 기존 init_ui를 보존한 뒤, 입력 카드 아래에 타이머 카드를 추가
+original_init_ui_for_timer = ReminderApp.init_ui
+
+
+def new_init_ui_for_timer(self):
+    original_init_ui_for_timer(self)
+
+    timer_card = QFrame()
+    timer_card.setStyleSheet("""
+        QFrame {
+            background:white;
+            border-radius:22px;
+        }
+    """)
+
+    timer_layout = QHBoxLayout()
+    timer_layout.setContentsMargins(22, 18, 22, 18)
+
+    timer_label = QLabel("⏱ 집중 타이머")
+    timer_label.setFont(QFont("맑은 고딕", 18, QFont.Bold))
+
+    timer_btn = QPushButton("타이머 열기")
+    timer_btn.setFixedHeight(44)
+    timer_btn.setStyleSheet("""
+        QPushButton {
+            background:#34c759;
+            color:white;
+            border:none;
+            border-radius:14px;
+            font-size:15px;
+            font-weight:bold;
+        }
+
+        QPushButton:hover {
+            background:#4cd964;
+        }
+    """)
+    timer_btn.clicked.connect(self.open_focus_timer)
+
+    timer_layout.addWidget(timer_label)
+    timer_layout.addStretch()
+    timer_layout.addWidget(timer_btn)
+
+    timer_card.setLayout(timer_layout)
+
+    # 화면 구조: 제목(0), 입력 카드(1), 타이머 카드(2), 스크롤 영역(3)
+    self.layout().insertWidget(2, timer_card)
+
+
+ReminderApp.init_ui = new_init_ui_for_timer
 
 # ============================================
 # 실행
