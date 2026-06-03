@@ -641,10 +641,18 @@ class ReminderApp(QWidget):
 
         # 그룹 펼침 상태
         self.group_states = {
-            "초과": True,
-            "오늘": True,
-            "내일": True,
-            "모레": True,
+            "🚨 마감 초과": True,
+            "☀️ 오늘": True,
+            "🌅 내일": True,
+            "🗓️ 이번 주": True,
+            "📅 이번 달": True,
+            "📊 이번 분기 (1분기)": False,  # 먼 일정은 접어두기
+            "📊 이번 분기 (2분기)": False,
+            "📊 이번 분기 (3분기)": False,
+            "📊 이번 분기 (4분기)": False,
+            "🌓 올해 상반기": False,
+            "🌓 올해 하반기": False,
+            "✨ 올해 남은 일정": False,
             "완료됨": False
         }
 
@@ -946,35 +954,40 @@ class ReminderApp(QWidget):
     # ============================================
 
     def get_group_name(self, deadline_str):
+        now = datetime.now()
+        today = now.date()
+        deadline_dt = datetime.strptime(deadline_str, "%Y-%m-%d %H:%M")
+        deadline_date = deadline_dt.date()
+        diff = (deadline_date - today).days
 
-        today = datetime.now().date()
+        if diff < 0: return "🚨 마감 초과"
+        if diff == 0: return "☀️ 오늘"
+        if diff == 1: return "🌅 내일"
+        if diff < 7: return "🗓️ 이번 주"
 
-        deadline = datetime.strptime(
-            deadline_str,
-            "%Y-%m-%d %H:%M"
-        ).date()
+        # 이번 달
+        if deadline_date.year == today.year and deadline_date.month == today.month:
+            return "📅 이번 달"
 
-        diff = (
-            deadline - today
-        ).days
+        # 이번 분기 (1~3월, 4~6월...)
+        curr_q = (now.month - 1) // 3
+        dead_q = (deadline_dt.month - 1) // 3
+        if deadline_date.year == today.year and curr_q == dead_q:
+            return f"📊 이번 분기 ({curr_q + 1}분기)"
 
-        if diff < 0:
-            return "초과"
+        # 이번 반기 (상/하반기)
+        curr_h = (now.month - 1) // 6
+        dead_h = (deadline_dt.month - 1) // 6
+        if deadline_date.year == today.year and curr_h == dead_h:
+            h_name = "상반기" if dead_h == 0 else "하반기"
+            return f"🌓 올해 {h_name}"
 
-        elif diff == 0:
-            return "오늘"
+        # 올해 남은 일정
+        if deadline_date.year == today.year:
+            return "✨ 올해 남은 일정"
 
-        elif diff == 1:
-            return "내일"
-
-        elif diff == 2:
-            return "모레"
-
-        else:
-            return (
-                f"{deadline.month}월 "
-                f"{deadline.day}일"
-            )
+        # 내년 이후
+        return f"🚀 {deadline_date.year}년 이후"
 
     # ============================================
     # 정렬
@@ -1007,6 +1020,44 @@ class ReminderApp(QWidget):
                 widget.deleteLater()
 
         self.sort_todos()
+        active_todos = [t for t in self.todos if not t["completed"]]
+        completed_todos = [t for t in self.todos if t["completed"]]
+
+        grouped = {}
+        for todo in active_todos:
+            group_name = self.get_group_name(todo["deadline"])
+            self.ensure_group_state(group_name)
+            if group_name not in grouped:
+                grouped[group_name] = []
+            grouped[group_name].append(todo)
+
+        # 정의된 카테고리 순서 (이 순서대로 화면에 배치됩니다)
+        priority_order = [
+            "🚨 마감 초과",
+            "☀️ 오늘",
+            "🌅 내일",
+            "🗓️ 이번 주",
+            "📅 이번 달",
+            "📊 이번 분기 (1분기)", "📊 이번 분기 (2분기)", "📊 이번 분기 (3분기)", "📊 이번 분기 (4분기)",
+            "🌓 올해 상반기", "🌓 올해 하반기",
+            "✨ 올해 남은 일정"
+        ]
+        # 정렬된 그룹 목록 생성
+        ordered_groups = []
+        # 1. 우선순위 리스트에 있는 카테고리 순서대로 추가
+        for name in priority_order:
+            if name in grouped:
+                ordered_groups.append(name)
+
+        # 2. '내년 이후' 처럼 리스트에 없는 나머지 카테고리 추가
+        others = sorted([x for x in grouped.keys() if x not in priority_order])
+        ordered_groups.extend(others)
+
+        # --- 아래는 기존 UI 생성 로직 (section 버튼 생성 등) ---
+        for group_name in ordered_groups:
+        # (중략: 기존 코드와 동일하게 버튼 및 TodoItemWidget 추가)
+
+        self.sort_todos()
 
         active_todos = []
         completed_todos = []
@@ -1037,26 +1088,6 @@ class ReminderApp(QWidget):
             grouped[group_name].append(todo)
 
         ordered_groups = []
-
-        for name in [
-            "초과",
-            "오늘",
-            "내일",
-            "모레"
-        ]:
-
-            if name in grouped:
-                ordered_groups.append(name)
-
-        others = [
-            x for x in grouped.keys()
-            if x not in [
-                "초과",
-                "오늘",
-                "내일",
-                "모레"
-            ]
-        ]
 
         ordered_groups.extend(others)
 
