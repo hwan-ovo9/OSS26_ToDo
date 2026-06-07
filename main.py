@@ -560,7 +560,10 @@ class TodoItemWidget(QFrame):
 
         self.update_style()
 
-        self.window().refresh_list()
+        QTimer.singleShot(
+            0,
+            self.window().refresh_list
+        )
 
         self.window().auto_save_data()
 
