@@ -2330,6 +2330,7 @@ def new_add_or_update_for_checklist(self):
 
 ReminderApp.add_or_update_todo = new_add_or_update_for_checklist
 
+
 # ============================================================================
 # [추가 코드] 체크리스트 실시간 개수 카운트 (a/n) 표시 연동
 # ============================================================================
@@ -2370,6 +2371,9 @@ def patched_todo_init_with_counter(self, todo_data, delete_callback, edit_callba
     # 생성이 끝난 직후 처음 저장되어 있던 카운트(a/n)를 화면에 반영합니다.
     update_checklist_counter(self)
 
+
+# 최종적으로 생성자 변경 적용
+TodoItemWidget.__init__ = patched_todo_init_with_counter
 
 # 최종적으로 생성자 변경 적용
 TodoItemWidget.__init__ = patched_todo_init_with_counter
