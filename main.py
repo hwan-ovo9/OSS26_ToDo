@@ -560,7 +560,10 @@ class TodoItemWidget(QFrame):
 
         self.update_style()
 
-        self.window().refresh_list()
+        QTimer.singleShot(
+            0,
+            self.window().refresh_list
+        )
 
         self.window().auto_save_data()
 
@@ -2057,6 +2060,275 @@ def new_init_ui_for_timer(self):
 
 
 ReminderApp.init_ui = new_init_ui_for_timer
+
+
+# ============================================================================
+# 체크리스트 - 06.08 -지오
+# ============================================================================
+
+class ChecklistDialog(QDialog):
+    """세련된 밑줄 스타일과 개별 삭제 기능이 포함된 체크리스트 팝업 창"""
+
+    def __init__(self, title, current_items, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(f"✅ 체크리스트 - {title}")
+        self.resize(420, 500)
+        self.setStyleSheet("""
+            QDialog {
+                background: #f2f2f7;
+                font-family: '맑은 고딕';
+            }
+            QLabel {
+                color: #1c1c1e;
+            }
+            QLineEdit {
+                background: white;
+                border: none;
+                border-radius: 10px;
+                padding: 10px;
+                font-size: 14px;
+                border-bottom: 2px solid #007aff;
+            }
+            QPushButton {
+                border: none;
+                border-radius: 12px;
+                font-size: 14px;
+                font-weight: bold;
+                padding: 10px;
+            }
+        """)
+
+        self.items = []
+
+        layout = QVBoxLayout()
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(12)
+
+        label = QLabel("체크할 항목을 관리하세요. 더블클릭으로 안전하게 진입된 창입니다.")
+        label.setFont(QFont("맑은 고딕", 10))
+        label.setStyleSheet("color: #8e8e93;")
+        layout.addWidget(label)
+
+        input_layout = QHBoxLayout()
+        self.item_input = QLineEdit()
+        self.item_input.setPlaceholderText("새로운 체크 항목을 입력하고 Enter 또는 추가 클릭")
+        self.item_input.returnPressed.connect(self.add_item_from_input)
+
+        add_btn = QPushButton("추가")
+        add_btn.setFixedWidth(72)
+        add_btn.setStyleSheet("""
+            QPushButton { background: #34c759; color: white; }
+            QPushButton:hover { background: #2cd054; }
+        """)
+        add_btn.clicked.connect(self.add_item_from_input)
+
+        input_layout.addWidget(self.item_input)
+        input_layout.addWidget(add_btn)
+        layout.addLayout(input_layout)
+
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setStyleSheet("""
+            QScrollArea {
+                background: white;
+                border: none;
+                border-radius: 14px;
+            }
+        """)
+
+        self.list_widget = QWidget()
+        self.list_widget.setStyleSheet("background: white;")
+        self.list_layout = QVBoxLayout()
+        self.list_layout.setContentsMargins(12, 12, 12, 12)
+        self.list_layout.setSpacing(0)
+        self.list_layout.addStretch()
+        self.list_widget.setLayout(self.list_layout)
+        self.scroll_area.setWidget(self.list_widget)
+        layout.addWidget(self.scroll_area)
+
+        close_btn = QPushButton("완료")
+        close_btn.setFixedHeight(40)
+        close_btn.setStyleSheet("""
+            QPushButton { background: #007aff; color: white; }
+            QPushButton:hover { background: #3395ff; }
+        """)
+        close_btn.clicked.connect(self.accept)
+        layout.addWidget(close_btn)
+
+        self.setLayout(layout)
+
+        if current_items:
+            for item in current_items:
+                self.add_item(item.get("text", ""), item.get("checked", False))
+
+    def add_item_from_input(self):
+        text = self.item_input.text().strip()
+        if text:
+            self.add_item(text, False)
+            self.item_input.clear()
+
+    def add_item(self, text="", checked=False):
+        # 공책 노트 패드 감성의 하단 밑줄 프레임 생성
+        item_frame = QFrame()
+        item_frame.setStyleSheet("""
+            QFrame {
+                background: white;
+                border: none;
+                border-bottom: 2px solid #d1d1d6; /* 선명한 가로 밑줄 스타일 */
+            }
+        """)
+        frame_layout = QHBoxLayout()
+        frame_layout.setContentsMargins(4, 8, 4, 8)
+
+        checkbox = QCheckBox(text)
+        checkbox.setChecked(checked)
+        checkbox.setStyleSheet("""
+            QCheckBox {
+                border: none;
+                font-size: 14px;
+                color: #1c1c1e;
+            }
+            QCheckBox::indicator {
+                width: 20px;
+                height: 20px;
+            }
+        """)
+
+        del_btn = QPushButton("✕")
+        del_btn.setFixedSize(24, 24)
+        del_btn.setStyleSheet("""
+            QPushButton {
+                background: transparent;
+                color: #ff3b30;
+                font-size: 14px;
+                font-weight: bold;
+                padding: 0px;
+            }
+            QPushButton:hover {
+                background: #ffeaea;
+                border-radius: 12px;
+            }
+        """)
+        del_btn.clicked.connect(lambda: self.delete_item(item_frame, checkbox))
+
+        frame_layout.addWidget(checkbox, 1)
+        frame_layout.addWidget(del_btn)
+        item_frame.setLayout(frame_layout)
+
+        self.list_layout.insertWidget(self.list_layout.count() - 1, item_frame)
+        self.items.append((item_frame, checkbox))
+
+    def delete_item(self, frame, checkbox):
+        self.list_layout.removeWidget(frame)
+        frame.deleteLater()
+        self.items = [item for item in self.items if item[1] != checkbox]
+
+    def get_items(self):
+        result = []
+        for _, checkbox in self.items:
+            text = checkbox.text().strip()
+            if text:
+                result.append({
+                    "text": text,
+                    "checked": checkbox.isChecked()
+                })
+        return result
+
+
+def open_checklist_window(widget):
+    todo_data = widget.todo_data
+    if "checklist" not in todo_data:
+        todo_data["checklist"] = []
+
+    dialog = ChecklistDialog(
+        todo_data["title"],
+        todo_data["checklist"],
+        widget.window()
+    )
+
+    if dialog.exec_():
+        todo_data["checklist"] = dialog.get_items()
+        widget.window().auto_save_data()
+
+
+def find_layout_containing_widget(layout, target_widget):
+    if layout is None:
+        return None
+    if layout.indexOf(target_widget) >= 0:
+        return layout
+    for index in range(layout.count()):
+        child_layout = layout.itemAt(index).layout()
+        found_layout = find_layout_containing_widget(child_layout, target_widget)
+        if found_layout is not None:
+            return found_layout
+    return None
+
+
+# 기존의 __init__ 체인을 안전하게 백업 및 확장 호출
+original_init_for_checklist = TodoItemWidget.__init__
+
+
+def new_init_for_checklist(self, todo_data, delete_callback, edit_callback):
+    # 상위 메모장 이모티콘 장착 로직 완료 후 제어권을 이어받음
+    original_init_for_checklist(self, todo_data, delete_callback, edit_callback)
+
+    if "checklist" not in self.todo_data:
+        self.todo_data["checklist"] = []
+
+    # 체크리스트 진입용 이모티콘 라벨 별도 구성
+    self.checklist_icon = QLabel("✅")
+    self.checklist_icon.setFont(QFont("맑은 고딕", 15, QFont.Bold))
+    self.checklist_icon.setCursor(Qt.PointingHandCursor)
+    self.checklist_icon.setToolTip("더블클릭하여 체크리스트를 엽니다.")
+
+    self.checklist_icon.mouseDoubleClickEvent = lambda event: open_checklist_window(self)
+
+    title_layout = find_layout_containing_widget(self.layout(), self.title)
+    if title_layout is not None:
+        title_index = title_layout.indexOf(self.title)
+        if title_index >= 0:
+            # 📝와 ✅를 일렬 횡대로 묶어줄 초정밀 가로 레이아웃 신설
+            title_row = QHBoxLayout()
+            title_row.setContentsMargins(0, 0, 0, 0)
+            title_row.setSpacing(6)  # 메모장과 체크 사이의 완벽하고 자연스러운 간격
+
+            title_layout.takeAt(title_index)
+            title_row.addWidget(self.title)  # 제목 및 📝 이모티콘 배치
+            title_row.addWidget(self.checklist_icon)  # 바로 오른쪽에 ✅ 이모티콘 밀착 배치
+            title_row.addStretch()  # 나머지 공백은 뒤로 밀어내 정렬 고정
+
+            title_layout.insertLayout(title_index, title_row)
+
+
+TodoItemWidget.__init__ = new_init_for_checklist
+
+# 데이터 저장 공간 보장 오버라이딩 패치
+original_add_or_update_for_checklist = ReminderApp.add_or_update_todo
+
+
+def new_add_or_update_for_checklist(self):
+    title = self.title_input.text().strip()
+    if title and self.editing_todo is None:
+        todo_data = {
+            "title": title,
+            "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "deadline": self.date_input.date().toString("yyyy-MM-dd") + " " + self.selected_time.toString("HH:mm"),
+            "priority": self.priority_input.currentText(),
+            "category": self.category_input.currentText(),
+            "status": self.status_input.currentText(),
+            "completed": False,
+            "memo": "",
+            "checklist": []
+        }
+        self.todos.append(todo_data)
+        self.clear_inputs()
+        self.refresh_list()
+        self.auto_save_data()
+    else:
+        original_add_or_update_for_checklist(self)
+
+
+ReminderApp.add_or_update_todo = new_add_or_update_for_checklist
 
 # ============================================
 # 실행
