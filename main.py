@@ -109,11 +109,11 @@ class TodoItemWidget(QFrame):
 
         side_bar = QFrame()
 
-        side_bar.setFixedWidth(6)
+        side_bar.setFixedWidth(15)
 
         side_bar.setStyleSheet(f"""
             background:{color};
-            border-radius:3px;
+            border-radius:5px;
         """)
 
         # ============================================
@@ -203,8 +203,8 @@ class TodoItemWidget(QFrame):
             background:#f2f2f7;
             color:#3a3a3c;
             border-radius:10px;
-            padding:4px 10px;
-            font-size:11px;
+            padding:6px 12px;
+            font-size:15px;
             font-weight:600;
         """
 
@@ -331,7 +331,7 @@ class TodoItemWidget(QFrame):
 
         self.countdown_label.setStyleSheet("""
             color:#8e8e93;
-            font-size:11px;
+            font-size:15px;
             font-weight:bold;
         """)
 
@@ -1158,8 +1158,6 @@ class ReminderApp(QWidget):
 
                     self.todo_widgets.append(widget)
                     self.todo_layout.addWidget(widget)
-
-                self.todo_layout.addStretch()
 
     # ============================================
     # 완료 항목 접기 / 펼치기
