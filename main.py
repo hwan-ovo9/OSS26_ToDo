@@ -153,80 +153,60 @@ class TodoItemWidget(QFrame):
         text_layout.addWidget(self.title)
 
         # ============================================
-        # 메타 정보 태그 레이아웃
+        # 공통 스타일 (먼저 정의!)
         # ============================================
-
-        meta_layout = QHBoxLayout()
-
-        meta_layout.setSpacing(8)
-
-        # 날짜 태그
-        date_label = QLabel(
-            f'📅 {todo_data["deadline"]}'
-        )
-
-        # 중요도 태그
-        priority_icon = {
-            "높음": "🔥",
-            "보통": "⭐",
-            "낮음": "🌱"
-        }
-
-        priority_label = QLabel(
-            f'{priority_icon.get(todo_data["priority"], "⭐")} '
-            f'{todo_data["priority"]}'
-        )
-
-        # 카테고리 태그
-        category_label = QLabel(
-            f'📁 {todo_data["category"]}'
-        )
-
-        # 상태 태그
-        status_icon = {
-            "진행 전": "🕓",
-            "진행 중": "⏳",
-            "완료": "✅",
-            "지연": "🚨"
-        }
-
-        status_label = QLabel(
-            f'{status_icon.get(todo_data["status"], "🕓")} '
-            f'{todo_data["status"]}'
-        )
-
-        # ============================================
-        # 공통 스타일
-        # ============================================
-
         tag_style = """
-            background:#f2f2f7;
-            color:#3a3a3c;
-            border-radius:10px;
-            padding:6px 12px;
-            font-size:15px;
-            font-weight:600;
+            background:#f2f2f7; color:#3a3a3c; border-radius:10px; padding:6px 12px; font-size:15px; font-weight:600;
         """
 
-        for tag in [
-            date_label,
-            priority_label,
-            category_label,
-            status_label
-        ]:
+        # 메타 정보 태그 레이아웃
+        meta_layout = QHBoxLayout()
+        meta_layout.setSpacing(8)
+
+        # 안전하게 데이터 추출 (누락 대비 기본값 부여)
+        date_val = todo_data.get("deadline", "")
+        priority_val = todo_data.get("priority", "보통")
+        category_val = todo_data.get("category", "개인")
+        status_val = todo_data.get("status", "진행 전")
+
+        date_label = QLabel(f'📅 {date_val}')
+        priority_icon = {"높음": "🔥", "보통": "⭐", "낮음": "🌱"}
+        priority_label = QLabel(f'{priority_icon.get(priority_val, "⭐")} {priority_val}')
+        category_label = QLabel(f'📁 {category_val}')
+        status_icon = {"진행 전": "🕓", "진행 중": "⏳", "완료": "✅", "지연": "🚨"}
+        status_label = QLabel(f'{status_icon.get(status_val, "🕓")} {status_val}')
+
+        # ============================================
+        # ✅ 2. 메타 정보 태그 레이아웃 생성
+        # ============================================
+        meta_layout = QHBoxLayout()
+        meta_layout.setSpacing(8)
+
+        # 안전하게 데이터 추출 (누락 대비 기본값 부여)
+        date_val = str(todo_data.get("deadline", ""))
+        priority_val = todo_data.get("priority", "보통")
+        category_val = todo_data.get("category", "개인")
+        status_val = todo_data.get("status", "진행 전")
+
+        date_label = QLabel(f'📅 {date_val}')
+        priority_icon = {"높음": "🔥", "보통": "⭐", "낮음": "🌱"}
+        priority_label = QLabel(f'{priority_icon.get(priority_val, "⭐")} {priority_val}')
+        category_label = QLabel(f'📁 {category_val}')
+        status_icon = {"진행 전": "🕓", "진행 중": "⏳", "완료": "✅", "지연": "🚨"}
+        status_label = QLabel(f'{status_icon.get(status_val, "🕓")} {status_val}')
+
+        # 시작 시간 태그 (안전하게 읽기)
+        start_time_val = todo_data.get("start_time", "")
+        if start_time_val and len(start_time_val) >= 5:
+            start_tag = QLabel(f'🕐 {start_time_val[:16]}')
+            start_tag.setStyleSheet(tag_style)  # 이제 미리 정의되어 안전하게 호출됨
+            meta_layout.addWidget(start_tag)
+
+        for tag in [date_label, priority_label, category_label, status_label]:
             tag.setStyleSheet(tag_style)
-
-        # ============================================
-        # 레이아웃 추가
-        # ============================================
-
-        meta_layout.addWidget(date_label)
-        meta_layout.addWidget(priority_label)
-        meta_layout.addWidget(category_label)
-        meta_layout.addWidget(status_label)
+            meta_layout.addWidget(tag)
 
         meta_layout.addStretch()
-
         text_layout.addLayout(meta_layout)
 
         # ============================================
@@ -423,124 +403,67 @@ class TodoItemWidget(QFrame):
         self.update_progress()
 
     def update_progress(self):
-
         try:
+            start_str = self.todo_data.get("start_time", "") or ""
 
-            created = datetime.strptime(
-                self.todo_data["created_at"],
-                "%Y-%m-%d %H:%M:%S"
-            )
+            if not start_str.strip():
+                created = datetime.strptime(self.todo_data.get("created_at", ""), "%Y-%m-%d %H:%M:%S")
+            else:
+                created = datetime.strptime(start_str, "%Y-%m-%d %H:%M")
 
-        except:
+            deadline = datetime.strptime(self.todo_data.get("deadline", ""), "%Y-%m-%d %H:%M")
+            now = datetime.now()
 
-            created = datetime.now()
+            total_seconds = (deadline - created).total_seconds()
+            remain_seconds = (deadline - now).total_seconds()
 
-        deadline = datetime.strptime(
-            self.todo_data["deadline"],
-            "%Y-%m-%d %H:%M"
-        )
+            if remain_seconds <= 0:
+                percent = 0
+            elif total_seconds <= 0:
+                percent = 100
+            else:
+                ratio = remain_seconds / total_seconds
+                percent = int((ratio ** 2) * 100)
 
-        now = datetime.now()
+            percent = max(0, min(percent, 100))
+            self.progress.setValue(percent)
 
-        total_seconds = (
-                deadline - created
-        ).total_seconds()
+            if percent > 60:
+                color = "#34c759"
+            elif percent > 30:
+                color = "#ffcc00"
+            elif percent > 10:
+                color = "#ff9500"
+            else:
+                color = "#ff3b30"
 
-        remain_seconds = (
-                deadline - now
-        ).total_seconds()
+            self.progress.setStyleSheet(
+                f"""QProgressBar {{ border:none; background:#e5e5ea; border-radius:6px; }} QProgressBar::chunk {{ background:{color}; border-radius:6px; }} """)
 
-        if remain_seconds <= 0:
+            if remain_seconds <= 0:
+                self.countdown_label.setText("🚨 마감 초과")
+            else:
+                hours = int(remain_seconds // 3600)
+                minutes = int((remain_seconds % 3600) // 60)
+                second = int((remain_seconds % 3600) % 60)
+                self.countdown_label.setText(f"⏰ {hours}시간 {minutes}분 {second}초 남음")
 
-            percent = 0
+            if percent > 60:
+                card_bg = "#ffffff"
+            elif percent > 30:
+                card_bg = "#fff9e6"
+            elif percent > 10:
+                card_bg = "#fff1e6"
+            else:
+                card_bg = "#ffeaea"
 
-        elif total_seconds <= 0:
+            if not self.check.isChecked():
+                self.setStyleSheet(f"""QFrame {{ background:{card_bg}; border-radius:22px; }} """)
 
-            percent = 100
-
-        else:
-
-            ratio = remain_seconds / total_seconds
-
-            percent = int(
-                (ratio ** 2) * 100
-            )
-
-        percent = max(
-            0,
-            min(percent, 100)
-        )
-
-        self.progress.setValue(percent)
-
-        if percent > 60:
-            color = "#34c759"
-
-        elif percent > 30:
-            color = "#ffcc00"
-
-        elif percent > 10:
-            color = "#ff9500"
-
-        else:
-            color = "#ff3b30"
-
-        self.progress.setStyleSheet(f"""
-        QProgressBar {{
-            border:none;
-            background:#e5e5ea;
-            border-radius:6px;
-        }}
-
-        QProgressBar::chunk {{
-            background:{color};
-            border-radius:6px;
-        }}
-        """)
-
-        if remain_seconds <= 0:
-
-            self.countdown_label.setText(
-                "🚨 마감 초과"
-            )
-
-        else:
-
-            hours = int(
-                remain_seconds // 3600
-            )
-
-            minutes = int(
-                (remain_seconds % 3600) // 60
-            )
-
-            second = int(
-                (remain_seconds % 3600) % 60
-            )
-
-            self.countdown_label.setText(
-                f"⏰ {hours}시간 {minutes}분 {second}초 남음"
-            )
-
-        if percent > 60:
-            card_bg = "#ffffff"
-
-        elif percent > 30:
-            card_bg = "#fff9e6"
-
-        elif percent > 10:
-            card_bg = "#fff1e6"
-
-        else:
-            card_bg = "#ffeaea"
-
-        if not self.check.isChecked():
-            self.setStyleSheet(f"""
-                QFrame {{
-                    background:{card_bg};
-                    border-radius:22px;
-                }}
-            """)
+        except Exception:
+            # 날짜 형식 오류 시 프로그램 강제 종료 방지
+            self.progress.setValue(0)
+            self.countdown_label.setText("⏰ 날짜 정보 오류")
 
     # ============================================
     # 완료 체크
@@ -726,199 +649,154 @@ class ReminderApp(QWidget):
         main_layout.addWidget(title)
 
         # ============================================
-        # 입력 카드
+        # 입력 카드 (레이아웃 정재)
         # ============================================
 
         input_card = QFrame()
-
         input_card.setStyleSheet("""
-            QFrame {
-                background:white;
-                border-radius:24px;
-            }
-        """)
+                    QFrame {
+                        background:white;
+                        border-radius:24px;
+                    }
+                """)
 
         input_layout = QVBoxLayout()
+        input_layout.setContentsMargins(24, 24, 24, 24)
+        input_layout.setSpacing(12)
 
-        input_layout.setContentsMargins(
-            24,
-            24,
-            24,
-            24
-        )
-
-        input_layout.setSpacing(14)
-
-        # 제목 입력
+        # --------------------------------------------------
+        # 1. 제목 입력
+        # --------------------------------------------------
         self.title_input = QLineEdit()
-
-        self.title_input.setPlaceholderText(
-            "할 일을 입력하세요"
-        )
-
+        self.title_input.setPlaceholderText("할 일을 입력하세요")
         self.title_input.setStyleSheet("""
-            QLineEdit {
-                border:none;
-                font-size:18px;
-                padding:12px;
-                background:#f2f2f7;
-                border-radius:14px;
-            }
+                    QLineEdit { border:none; font-size:18px; padding:12px; background:#f2f2f7; border-radius:14px; }
+                """)
+        input_layout.addWidget(self.title_input)
+
+        # ============================================
+        # 2 & 3. 시작/마감 시점 (같은 줄에 정렬)
+        # ============================================
+        time_picker_layout = QHBoxLayout()
+        time_picker_layout.setSpacing(14)
+
+        # 시작 시점 컬럼
+        start_col = QVBoxLayout()
+        start_col.addWidget(QLabel("🕐 시작"), alignment=Qt.AlignLeft)
+
+        self.start_date_input = QDateEdit()
+        self.start_date_input.setDate(QDate.currentDate())
+        self.start_date_input.setCalendarPopup(True)
+        # ✅ 날짜 형식을 직관적인 'YYYY-MM-DD'로 고정 (지역 설정 의존 제거)
+        self.start_date_input.setDisplayFormat("yyyy-MM-dd")
+        self.start_date_input.setToolTip("📅 캘린더를 클릭하여 시작 날짜를 선택하세요")
+        self.start_date_input.setStyleSheet("""
+            background:#f2f2f7; border:none; border-radius:10px; padding:8px 12px; 
+            font-size:30px; color:#1c1c1e; font-weight:bold; selection-background-color:#3395ff;
         """)
 
-        input_layout.addWidget(
-            self.title_input
-        )
+        self.selected_start_time = QTime.currentTime()
+        self.start_time_btn = QPushButton(f"🕒 {self.selected_start_time.toString('HH:mm')}")
+        self.start_time_btn.clicked.connect(self.open_start_time_picker)
+        self.start_time_btn.setToolTip("🕒 시작 시간을 선택하세요")
+        self.start_time_btn.setStyleSheet("""
+            background:#f2f2f7; border:none; border-radius:10px; padding:8px 14px; 
+            font-size:30px; min-width:75px; color:#1c1c1e; font-weight:bold;
+        """)
 
-        # 옵션
-        option_layout = QHBoxLayout()
+        start_row = QHBoxLayout()
+        start_row.addWidget(self.start_date_input, 1)
+        start_row.addWidget(self.start_time_btn)
+        start_col.addLayout(start_row)
+
+        time_picker_layout.addLayout(start_col, 1)
+        time_picker_layout.addSpacing(20)
+
+        # 마감 시점 컬럼
+        deadline_col = QVBoxLayout()
+        deadline_col.addWidget(QLabel("📅 마감"), alignment=Qt.AlignLeft)
 
         self.date_input = QDateEdit()
-
-        self.date_input.setDate(
-            QDate.currentDate()
-        )
-
+        self.date_input.setDate(QDate.currentDate())
         self.date_input.setCalendarPopup(True)
+        # ✅ 날짜 형식 통일
+        self.date_input.setDisplayFormat("yyyy-MM-dd")
+        self.date_input.setToolTip("📅 캘린더를 클릭하여 마감 날짜를 선택하세요")
+        self.date_input.setStyleSheet("""
+            background:#f2f2f7; border:none; border-radius:10px; padding:8px 12px; 
+            font-size:30px; color:#1c1c1e; font-weight:bold; selection-background-color:#3395ff;
+        """)
 
-        self.time_btn = QPushButton()
+        self.selected_time = QTime.currentTime()
+        self.time_btn = QPushButton(f"🕒 {self.selected_time.toString('HH:mm')}")
+        self.time_btn.clicked.connect(self.open_time_picker)
+        self.time_btn.setToolTip("🕒 마감 시간을 선택하세요")
+        self.time_btn.setStyleSheet("""
+            background:#f2f2f7; border:none; border-radius:10px; padding:8px 14px; 
+            font-size:30px; min-width:75px; color:#1c1c1e; font-weight:bold;
+        """)
 
-        self.time_btn.setText(
-            f"🕒 {self.selected_time.toString('HH:mm')}"
-        )
+        deadline_row = QHBoxLayout()
+        deadline_row.addWidget(self.date_input, 1)
+        deadline_row.addWidget(self.time_btn)
+        deadline_col.addLayout(deadline_row)
 
-        self.time_btn.clicked.connect(
-            self.open_time_picker
-        )
+        time_picker_layout.addLayout(deadline_col, 1)
 
-        self.date_input.setCalendarPopup(True)
+        input_layout.addLayout(time_picker_layout)
+
+        # --------------------------------------------------
+        # 4. 옵션 (중요도, 카테고리, 상태)
+        # --------------------------------------------------
+        option_label = QLabel("💡 설정")
+        option_label.setFont(QFont("맑은 고딕", 10))
+        option_label.setStyleSheet("color:#8e8e93; margin-bottom:4px; margin-top:6px;")
+        input_layout.addWidget(option_label)
 
         self.priority_input = QComboBox()
-        self.priority_input.addItems([
-            "낮음",
-            "보통",
-            "높음"
-        ])
-
+        self.priority_input.addItems(["낮음", "보통", "높음"])
         self.category_input = QComboBox()
-        self.category_input.addItems([
-            "학업",
-            "개인",
-            "팀플",
-            "업무"
-        ])
-
+        self.category_input.addItems(["학업", "개인", "팀플", "업무"])
         self.status_input = QComboBox()
-        self.status_input.addItems([
-            "진행 전",
-            "진행 중",
-            "완료"
-        ])
+        self.status_input.addItems(["진행 전", "진행 중", "완료"])
 
-        for widget in [
-            self.date_input,
-            self.time_btn,
-            self.priority_input,
-            self.category_input,
-            self.status_input
-        ]:
-            widget.setStyleSheet("""
-                background:#f2f2f7;
-                border:none;
-                border-radius:12px;
-                padding:8px;
-            """)
+        for w in [self.priority_input, self.category_input, self.status_input]:
+            w.setStyleSheet("""background:#f2f2f7; border:none; border-radius:12px; padding:8px;""")
 
-        option_layout.addWidget(
-            self.date_input
-        )
+        options_layout = QHBoxLayout()
+        options_layout.setSpacing(10)
+        options_layout.addWidget(self.priority_input)
+        options_layout.addWidget(self.category_input)
+        options_layout.addWidget(self.status_input)
+        input_layout.addLayout(options_layout)
 
-        option_layout.addWidget(
-            self.time_btn
-        )
-
-        option_layout.addWidget(
-            self.priority_input
-        )
-
-        option_layout.addWidget(
-            self.category_input
-        )
-
-        option_layout.addWidget(
-            self.status_input
-        )
-
-        input_layout.addLayout(
-            option_layout
-        )
-
-        # ============================================
-        # 버튼
-        # ============================================
-
+        # --------------------------------------------------
+        # 5. 버튼 영역 (기존 유지)
+        # --------------------------------------------------
         btn_layout = QHBoxLayout()
-
         self.add_btn = QPushButton("추가")
-
-        self.add_btn.clicked.connect(
-            self.add_or_update_todo
-        )
+        self.add_btn.clicked.connect(self.add_or_update_todo)
 
         save_btn = QPushButton("저장")
-
-        save_btn.clicked.connect(
-            self.save_data
-        )
+        save_btn.clicked.connect(self.save_data)
 
         load_btn = QPushButton("불러오기")
+        load_btn.clicked.connect(self.load_data)
 
-        load_btn.clicked.connect(
-            self.load_data
-        )
-
-        for btn in [
-            self.add_btn,
-            save_btn,
-            load_btn
-        ]:
-
+        for btn in [self.add_btn, save_btn, load_btn]:
             btn.setFixedHeight(42)
-
             btn.setStyleSheet("""
-                QPushButton {
-                    background:#007aff;
-                    color:white;
-                    border:none;
-                    border-radius:14px;
-                    font-size:15px;
-                    font-weight:bold;
-                }
+                        QPushButton { background:#007aff; color:white; border:none; border-radius:14px; font-size:15px; font-weight:bold; }
+                        QPushButton:hover { background:#3395ff; }
+                    """)
 
-                QPushButton:hover {
-                    background:#3395ff;
-                }
-            """)
-
-        btn_layout.addWidget(
-            self.add_btn
-        )
-
+        btn_layout.addWidget(self.add_btn)
         btn_layout.addWidget(save_btn)
-
         btn_layout.addWidget(load_btn)
+        input_layout.addLayout(btn_layout)
 
-        input_layout.addLayout(
-            btn_layout
-        )
-
-        input_card.setLayout(
-            input_layout
-        )
-
-        main_layout.addWidget(
-            input_card
-        )
+        input_card.setLayout(input_layout)
+        main_layout.addWidget(input_card)
 
         # ============================================
         # 스크롤
@@ -993,17 +871,16 @@ class ReminderApp(QWidget):
         return f"🚀 {deadline_date.year}년 이후"
 
     # ============================================
-    # 정렬
+    # 정렬 (예외 안전 처리)
     # ============================================
-
     def sort_todos(self):
+        def safe_date_key(x):
+            try:
+                return datetime.strptime(str(x.get("deadline", "")), "%Y-%m-%d %H:%M")
+            except ValueError:
+                return datetime.max  # 깨진 데이터는 맨 뒤로 밀어냄
 
-        self.todos.sort(
-            key=lambda x: datetime.strptime(
-                x["deadline"],
-                "%Y-%m-%d %H:%M"
-            )
-        )
+        self.todos.sort(key=safe_date_key)
 
     # ============================================
     # 리스트 갱신
@@ -1100,14 +977,12 @@ class ReminderApp(QWidget):
 
             if is_open:
                 for todo in grouped[group_name]:
-                    widget = TodoItemWidget(
-                        todo,
-                        self.delete_todo,
-                        self.edit_todo
-                    )
-
-                    self.todo_widgets.append(widget)
-                    self.todo_layout.addWidget(widget)
+                    try:
+                        widget = TodoItemWidget(todo, self.delete_todo, self.edit_todo)
+                        self.todo_widgets.append(widget)
+                        self.todo_layout.addWidget(widget)
+                    except Exception as e:
+                        print(f"[경고] 위젯 렌더링 실패 ({todo.get('title', 'Unknown')}): {e}")
 
         # ============================================
         # 완료됨 섹션
@@ -1202,27 +1077,18 @@ class ReminderApp(QWidget):
 
             return
 
+        deadline_str = self.date_input.date().toString("yyyy-MM-dd") + " " + self.selected_time.toString("HH:mm")
+        start_str = self.start_date_input.date().toString("yyyy-MM-dd") + " " + self.selected_start_time.toString(
+            "HH:mm")
+
         todo_data = {
             "title": title,
-
-            "created_at": datetime.now().strftime(
-                "%Y-%m-%d %H:%M:%S"
-            ),
-
-            "deadline":
-                self.date_input.date().toString("yyyy-MM-dd")
-                + " " +
-                self.selected_time.toString("HH:mm"),
-
-            "priority":
-                self.priority_input.currentText(),
-
-            "category":
-                self.category_input.currentText(),
-
-            "status":
-                self.status_input.currentText(),
-
+            "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "deadline": deadline_str,
+            "start_time": start_str,  # 👈 시작 시간 저장 키 추가
+            "priority": self.priority_input.currentText(),
+            "category": self.category_input.currentText(),
+            "status": self.status_input.currentText(),
             "completed": False,
         }
 
@@ -1258,46 +1124,46 @@ class ReminderApp(QWidget):
     # ============================================
 
     def edit_todo(self, todo):
-
         self.editing_todo = todo
 
-        self.title_input.setText(
-            todo["title"]
-        )
+        # 1. 제목 설정
+        self.title_input.setText(todo.get("title", ""))
 
-        date = datetime.strptime(
-            todo["deadline"],
-            "%Y-%m-%d %H:%M"
-        )
+        # 2. 마감 날짜/시간 파싱 (예외 처리 추가)
+        deadline_str = str(todo.get("deadline", ""))
+        try:
+            date_dt = datetime.strptime(deadline_str, "%Y-%m-%d %H:%M")
+        except ValueError:
+            # 저장 형식이 다르면 현재 시간으로 대체하여 crashing 방지
+            date_dt = datetime.now()
 
-        self.date_input.setDate(
-            QDate(
-                date.year,
-                date.month,
-                date.day
-            )
-        )
+        self.date_input.setDate(QDate(date_dt.year, date_dt.month, date_dt.day))
+        self.selected_time = QTime(date_dt.hour, date_dt.minute)
+        self.time_btn.setText(f"🕒 {self.selected_time.toString('HH:mm')}")
 
-        self.selected_time = QTime(
-            date.hour,
-            date.minute
-        )
+        # 3. 시작 날짜/시간 파싱 (빈값/없음 안전 처리)
+        start_data = str(todo.get("start_time", ""))
+        if len(start_data) >= 5:
+            try:
+                start_dt = datetime.strptime(start_data, "%Y-%m-%d %H:%M")
+            except ValueError:
+                start_dt = date_dt  # 파싱 실패 시 마감 시간과 동일하게 처리
+        else:
+            start_dt = date_dt  # 데이터가 아예 없을 경우 마감 시간과 동일하게 처리
 
-        self.time_btn.setText(
-            f"🕒 {self.selected_time.toString('HH:mm')}"
-        )
+        self.start_date_input.setDate(QDate(start_dt.year, start_dt.month, start_dt.day))
+        self.selected_start_time = QTime(start_dt.hour, start_dt.minute)
+        self.start_time_btn.setText(f"🕒 {self.selected_start_time.toString('HH:mm')}")
 
-        self.priority_input.setCurrentText(
-            todo["priority"]
-        )
+        # 4. 콤보박스 안전 설정 (공백 제거 및 매칭 실패 대비)
+        def safe_set_combo(combo, text):
+            clean_text = text.strip() if text else ""
+            idx = combo.findText(clean_text)
+            combo.setCurrentIndex(idx if idx != -1 else 0)
 
-        self.category_input.setCurrentText(
-            todo["category"]
-        )
-
-        self.status_input.setCurrentText(
-            todo["status"]
-        )
+        safe_set_combo(self.priority_input, todo.get("priority"))
+        safe_set_combo(self.category_input, todo.get("category"))
+        safe_set_combo(self.status_input, todo.get("status"))
 
         # 버튼 텍스트 변경
         self.add_btn.setText("수정 완료")
@@ -1325,6 +1191,11 @@ class ReminderApp(QWidget):
         self.category_input.setCurrentIndex(0)
 
         self.status_input.setCurrentIndex(0)
+
+        self.start_date_input.setDate(QDate.currentDate())
+        self.selected_start_time = QTime.currentTime()
+        self.start_time_btn.setText(f"🕒 {self.selected_start_time.toString('HH:mm')}")
+
 
     # ============================================
     # 삭제
@@ -1435,31 +1306,38 @@ class ReminderApp(QWidget):
             )
 
     # ============================================
-    # 자동 불러오기
+    # 자동 불러오기 (데이터 안전성 강화)
     # ============================================
-
     def auto_load_data(self):
-
-        if not os.path.exists(
-            self.auto_save_file
-        ):
+        if not os.path.exists(self.auto_save_file):
+            self.todos = []
             return
 
         try:
+            with open(self.auto_save_file, "r", encoding="utf-8") as f:
+                raw_list = json.load(f)
 
-            with open(
-                self.auto_save_file,
-                "r",
-                encoding="utf-8"
-            ) as f:
+            # ✅ 레거시 데이터 호환 & 누락 필드 자동 보완
+            safe_todos = []
+            for item in raw_list:
+                if not isinstance(item, dict):
+                    continue
+                item.setdefault("priority", "보통")
+                item.setdefault("category", "개인")
+                item.setdefault("status", "진행 전")
+                item.setdefault("completed", False)
+                item.setdefault("memo", "")
+                item.setdefault("checklist", [])
+                if not item.get("start_time"):
+                    item["start_time"] = ""
+                safe_todos.append(item)
 
-                self.todos = json.load(f)
-
+            self.todos = safe_todos
             self.refresh_list()
 
         except Exception as e:
-
-            print("자동 불러오기 실패:", e)
+            print(f"[경고] 데이터 파일 손상 또는 읽기 실패 ({e}). 초기 상태로 시작합니다.")
+            self.todos = []
 
     # ============================================
     # 종료 이벤트
@@ -1488,6 +1366,12 @@ class ReminderApp(QWidget):
             self.time_btn.setText(
                 f"🕒 {self.selected_time.toString('HH:mm')}"
             )
+
+    def open_start_time_picker(self):
+        dialog = TimePickerDialog(self.selected_start_time, self)
+        if dialog.exec_():
+            self.selected_start_time = dialog.get_time()
+            self.start_time_btn.setText(f"🕒 {self.selected_start_time.toString('HH:mm')}")
 
     # ============================================
     # 알림 검사 함수
