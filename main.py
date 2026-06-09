@@ -1159,8 +1159,6 @@ class ReminderApp(QWidget):
                     self.todo_widgets.append(widget)
                     self.todo_layout.addWidget(widget)
 
-                self.todo_layout.addStretch()
-
     # ============================================
     # 완료 항목 접기 / 펼치기
     # ============================================
