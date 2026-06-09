@@ -2606,6 +2606,52 @@ TodoItemWidget.__init__ = patched_todo_init_with_counter
 # 최종적으로 생성자 변경 적용
 TodoItemWidget.__init__ = patched_todo_init_with_counter
 
+# ============================================================================
+# [추가 코드] 체크리스트 취소선 추가
+# ============================================================================
+
+if 'NewChecklistItemRow' in globals():
+
+    original_row_init = NewChecklistItemRow.__init__
+
+
+    def patched_row_init(self, text, checked, on_delete):
+        original_row_init(self, text, checked, on_delete)
+
+        def apply_strikeout(state):
+            font = self.checkbox.font()
+            font.setStrikeOut(state == 2)
+            self.checkbox.setFont(font)
+
+        self.checkbox.stateChanged.connect(apply_strikeout)
+        apply_strikeout(2 if checked else 0)
+
+
+    NewChecklistItemRow.__init__ = patched_row_init
+
+elif 'ChecklistDialog' in globals():
+
+    original_add_item = ChecklistDialog.add_item
+
+
+    def patched_add_item(self, text="", checked=False):
+        original_add_item(self, text, checked)
+
+        # 가장 최근에 추가된 체크박스를 동적으로 찾아 취소선을 실시간 연동합니다.
+        if hasattr(self, 'items') and self.items:
+            _, checkbox = self.items[-1]
+
+            def apply_strikeout(state):
+                font = checkbox.font()
+                font.setStrikeOut(state == 2)
+                checkbox.setFont(font)
+
+            checkbox.stateChanged.connect(apply_strikeout)
+            apply_strikeout(2 if checked else 0)
+
+
+    ChecklistDialog.add_item = patched_add_item
+
 # ============================================
 # 실행
 # ============================================
