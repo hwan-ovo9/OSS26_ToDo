@@ -117,18 +117,31 @@ class TodoItemWidget(QFrame):
         """)
 
         # ============================================
-        # 체크박스
+        # 체크박스 (회색 배경 + 라운드 검은 가장자리 해결)
         # ============================================
-
         self.check = QCheckBox()
+        self.check.setChecked(todo_data["completed"])
+        self.check.stateChanged.connect(self.toggle_complete)
 
-        self.check.setChecked(
-            todo_data["completed"]
-        )
-
-        self.check.stateChanged.connect(
-            self.toggle_complete
-        )
+        self.check.setStyleSheet("""
+                   QCheckBox {
+                       spacing: 10px;
+                       color: #1c1c1e;
+                       font-size: 15px;
+                       background: transparent; /* ✅ 부모 배경이 새어 검은 테두리 생기는 현상 차단 */
+                   }
+                   QCheckBox::indicator {
+                       width: 22px;
+                       height: 22px;
+                       border-radius: 7px;   /* 부드럽고 정확한 라운드 처리 */
+                       background-color: #e5e5ea; /* ✅ 살짝 회색 배경 (iOS/Android 시스템 그레이 계열) */
+                       border: none;
+                   }
+                   QCheckBox::indicator:checked {
+                       background-color: #007aff; /* 체크 시 파란색으로 변경 */
+                       /* Qt가 자동으로 흰색 체크마크를 그려줍니다. 별도 아이콘 파일 필요 없음 */
+                   }
+               """)
 
         # ============================================
         # 텍스트
@@ -746,62 +759,58 @@ class ReminderApp(QWidget):
         input_layout.addLayout(time_picker_layout)
 
         # --------------------------------------------------
-        # 4. 설정 영역 (중요도, 카테고리, 상태) - 레이아웃 및 스타일 안정화
+        # 4. 설정 영역 (중요도, 카테고리, 상태) -> 카드 내부 유지 but 시각적 박스 제거
         # --------------------------------------------------
-        settings_container = QWidget()
-        settings_layout = QHBoxLayout(settings_container)
-        # 컨테이너 내부 여백을 주어 자식 컴포넌트가 가장자리에 붙지 않도록 함
-        settings_layout.setContentsMargins(12, 8, 12, 8)
-        settings_layout.setSpacing(16)
 
-        # ✅ QComboBox 공통 스타일 (폰트 크기 및 패딩을 박스 크기에 맞게 조정하여 배경색 문제 해결)
-        combo_style = """
-                            QComboBox {
-                                background-color: #f2f2f7;
-                                border: 1px solid #e5e5ea;
-                                border-radius: 10px;
-                                padding: 6px 14px; /* 텍스트와 테두리 사이 여백 확보 */
-                                font-size: 20px; /* 폰트 크기를 줄여 박스 내부가 꽉 차도록 수정 */
-                                color: #1c1c1e;
-                            }
-                            QComboBox::drop-down {
-                                border: none;
-                                width: 24px;
-                            }
-                        """
-
-        # 🔥 중요도
-        priority_col = QVBoxLayout()
-        priority_col.addWidget(QLabel("🔥 중요도"), alignment=Qt.AlignLeft)
+        # 1️⃣ 위젯 먼저 생성 (이전 오류는 이 순서가 빠졌기 때문이었습니다)
         self.priority_input = QComboBox()
         self.priority_input.addItems(["낮음", "보통", "높음"])
-        self.priority_input.setStyleSheet(combo_style)
-        # 열을 세로 중앙에 맞춰 배치하여 상하 여백 발생 방지
-        priority_col.setAlignment(Qt.AlignVCenter)
-        priority_col.addWidget(self.priority_input)
-        settings_layout.addLayout(priority_col, 1)
 
-        # 📂 카테고리
-        category_col = QVBoxLayout()
-        category_col.addWidget(QLabel("📂 카테고리"), alignment=Qt.AlignLeft)
         self.category_input = QComboBox()
         self.category_input.addItems(["학업", "개인", "팀플", "업무"])
-        self.category_input.setStyleSheet(combo_style)
-        category_col.setAlignment(Qt.AlignVCenter)
-        category_col.addWidget(self.category_input)
-        settings_layout.addLayout(category_col, 1)
 
-        # ✅ 상태
-        status_col = QVBoxLayout()
-        status_col.addWidget(QLabel("✅ 상태"), alignment=Qt.AlignLeft)
         self.status_input = QComboBox()
         self.status_input.addItems(["진행 전", "진행 중", "완료"])
-        self.status_input.setStyleSheet(combo_style)
-        status_col.setAlignment(Qt.AlignVCenter)
-        status_col.addWidget(self.status_input)
-        settings_layout.addLayout(status_col, 1)
 
-        input_layout.addWidget(settings_container)
+        # 2️⃣ 카드의 흰색 배경과 자연스럽게 합쳐지도록 스타일 적용 (테두리/배경 투명화)
+        combo_style = """
+            QComboBox {
+                background: transparent; 
+                border: none; 
+                font-size: 24px; 
+                color: #1c1c1e; 
+                padding: 4px 6px; 
+            }
+            QComboBox::drop-down { 
+                border: none; 
+                width: 20px; 
+                image: none; 
+            }
+            QComboBox::item { 
+                background: transparent; 
+            }
+        """
+        for combo in [self.priority_input, self.category_input, self.status_input]:
+            combo.setStyleSheet(combo_style)
+
+        # 3️⃣ 가로 행 레이아웃 구성
+        settings_row_layout = QHBoxLayout()
+        settings_row_layout.setSpacing(28)
+        settings_row_layout.setContentsMargins(0, 6, 0, 0)  # 카드 내부 상단 여백만 확보
+
+        for label_text, combo in [
+            ("🔥 중요도", self.priority_input),
+            ("📂 카테고리", self.category_input),
+            ("✅ 상태", self.status_input)
+        ]:
+            col = QVBoxLayout()
+            col.addWidget(QLabel(label_text))
+            col.setAlignment(Qt.AlignVCenter)
+            col.addWidget(combo)
+            settings_row_layout.addLayout(col, 1)
+
+        # 4️⃣ 기존과 동일하게 'input_card' 내부에 추가 (레이아웃 구조 변경 없음)
+        input_layout.addLayout(settings_row_layout)
 
         # --------------------------------------------------
         # 5. 버튼 영역 (기존 유지)
