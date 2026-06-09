@@ -1756,26 +1756,40 @@ def open_memo_window(widget):
         widget.window().auto_save_data()
 
 # ============================================================================
-# 집중 타이머 기능 추가(6월 3일) - 우상민
+# 일반 타이머 + 뽀모도로 통합 기능
 # ============================================================================
-from PyQt5.QtWidgets import QSpinBox, QProgressBar
+from PyQt5.QtWidgets import QSpinBox, QProgressBar, QStackedWidget
 from PyQt5.QtCore import QTimer
 
+
 class TimerDialog(QDialog):
-    """시/분/초를 설정하고 시작, 일시정지, 초기화할 수 있는 타이머 팝업"""
+    """일반 타이머와 뽀모도로를 한 창에서 전환해 사용하는 통합 타이머."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
 
-        self.setWindowTitle("⏱ 집중 타이머")
-        self.resize(460, 380)
+        self.setWindowTitle("⏱ 통합 집중 타이머")
+        self.resize(500, 520)
 
-        # 타이머 상태값
-        self.total_seconds = 0
-        self.remaining_seconds = 0
+        # 현재 타이머 종류: normal 또는 pomodoro
+        self.timer_type = "normal"
         self.is_running = False
 
-        # 1초마다 update_timer 실행
+        # 공통 시간 상태
+        self.total_seconds = 25 * 60
+        self.remaining_seconds = self.total_seconds
+
+        # 뽀모도로 기본 규칙
+        self.focus_minutes = 25
+        self.short_break_minutes = 5
+        self.long_break_minutes = 15
+        self.max_cycle = 4
+
+        # 뽀모도로 진행 상태
+        self.pomodoro_mode = "focus"  # focus, short_break, long_break
+        self.cycle_count = 1
+
+        # 일반/뽀모도로가 함께 사용하는 단 하나의 QTimer
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_timer)
 
@@ -1801,7 +1815,7 @@ class TimerDialog(QDialog):
                 color:white;
                 border:none;
                 border-radius:14px;
-                font-size:15px;
+                font-size:14px;
                 font-weight:bold;
                 padding:10px;
             }
@@ -1812,28 +1826,111 @@ class TimerDialog(QDialog):
                 border-radius:10px;
                 height:18px;
             }
-
-            QProgressBar::chunk {
-                background:#34c759;
-                border-radius:10px;
-            }
         """)
 
         self.init_ui()
-        self.update_input_time()
+        self.switch_to_normal()
 
+    # ------------------------------------------------------------------------
+    # 화면 구성
+    # ------------------------------------------------------------------------
     def init_ui(self):
         main_layout = QVBoxLayout()
         main_layout.setContentsMargins(24, 24, 24, 24)
-        main_layout.setSpacing(18)
+        main_layout.setSpacing(16)
 
-        title = QLabel("⏱ 집중 타이머")
+        title = QLabel("⏱ 통합 집중 타이머")
         title.setFont(QFont("맑은 고딕", 24, QFont.Bold))
         title.setStyleSheet("color:#ff3b30;")
         main_layout.addWidget(title)
 
-        # 시간 입력 영역
-        input_layout = QHBoxLayout()
+        # 같은 팝업 안에서 일반 타이머/뽀모도로 전환
+        mode_layout = QHBoxLayout()
+
+        self.normal_mode_btn = QPushButton("일반 타이머")
+        self.pomodoro_mode_btn = QPushButton("🍅 뽀모도로")
+
+        self.normal_mode_btn.clicked.connect(self.switch_to_normal)
+        self.pomodoro_mode_btn.clicked.connect(self.switch_to_pomodoro)
+
+        mode_layout.addWidget(self.normal_mode_btn)
+        mode_layout.addWidget(self.pomodoro_mode_btn)
+        main_layout.addLayout(mode_layout)
+
+        # 종류별 설정 화면만 교체하고, 시간 표시와 제어 버튼은 함께 사용
+        self.setting_stack = QStackedWidget()
+        self.setting_stack.addWidget(self.create_normal_setting_page())
+        self.setting_stack.addWidget(self.create_pomodoro_setting_page())
+        main_layout.addWidget(self.setting_stack)
+
+        self.status_label = QLabel("일반 타이머")
+        self.status_label.setAlignment(Qt.AlignCenter)
+        self.status_label.setFont(QFont("맑은 고딕", 17, QFont.Bold))
+        main_layout.addWidget(self.status_label)
+
+        self.time_label = QLabel("00:25:00")
+        self.time_label.setAlignment(Qt.AlignCenter)
+        self.time_label.setFont(QFont("맑은 고딕", 38, QFont.Bold))
+        main_layout.addWidget(self.time_label)
+
+        self.cycle_label = QLabel("")
+        self.cycle_label.setAlignment(Qt.AlignCenter)
+        self.cycle_label.setFont(QFont("맑은 고딕", 13, QFont.Bold))
+        self.cycle_label.setStyleSheet("color:#8e8e93;")
+        main_layout.addWidget(self.cycle_label)
+
+        self.progress = QProgressBar()
+        self.progress.setValue(0)
+        self.progress.setTextVisible(False)
+        main_layout.addWidget(self.progress)
+
+        control_layout = QHBoxLayout()
+
+        self.start_btn = QPushButton("시작")
+        self.pause_btn = QPushButton("일시정지")
+        self.reset_btn = QPushButton("초기화")
+        self.next_btn = QPushButton("다음 단계")
+
+        self.start_btn.setStyleSheet("""
+            QPushButton { background:#007aff; }
+            QPushButton:hover { background:#3395ff; }
+        """)
+        self.pause_btn.setStyleSheet("""
+            QPushButton { background:#ff9500; }
+            QPushButton:hover { background:#ffaa33; }
+        """)
+        self.reset_btn.setStyleSheet("""
+            QPushButton { background:#ff3b30; }
+            QPushButton:hover { background:#ff5c52; }
+        """)
+        self.next_btn.setStyleSheet("""
+            QPushButton { background:#34c759; }
+            QPushButton:hover { background:#4cd964; }
+        """)
+
+        self.start_btn.clicked.connect(self.start_timer)
+        self.pause_btn.clicked.connect(self.pause_timer)
+        self.reset_btn.clicked.connect(self.reset_timer)
+        self.next_btn.clicked.connect(self.next_pomodoro_stage)
+
+        control_layout.addWidget(self.start_btn)
+        control_layout.addWidget(self.pause_btn)
+        control_layout.addWidget(self.reset_btn)
+        control_layout.addWidget(self.next_btn)
+        main_layout.addLayout(control_layout)
+
+        self.info_label = QLabel("")
+        self.info_label.setAlignment(Qt.AlignCenter)
+        self.info_label.setFont(QFont("맑은 고딕", 11))
+        self.info_label.setStyleSheet("color:#8e8e93;")
+        main_layout.addWidget(self.info_label)
+
+        self.setLayout(main_layout)
+
+    def create_normal_setting_page(self):
+        page = QWidget()
+        layout = QHBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
 
         self.hour_spin = QSpinBox()
         self.hour_spin.setRange(0, 23)
@@ -1848,71 +1945,162 @@ class TimerDialog(QDialog):
         self.second_spin.setRange(0, 59)
         self.second_spin.setSuffix(" 초")
 
-        input_layout.addWidget(self.hour_spin)
-        input_layout.addWidget(self.minute_spin)
-        input_layout.addWidget(self.second_spin)
+        self.hour_spin.valueChanged.connect(self.update_normal_input_time)
+        self.minute_spin.valueChanged.connect(self.update_normal_input_time)
+        self.second_spin.valueChanged.connect(self.update_normal_input_time)
 
-        main_layout.addLayout(input_layout)
+        layout.addWidget(self.hour_spin)
+        layout.addWidget(self.minute_spin)
+        layout.addWidget(self.second_spin)
 
-        # 남은 시간 표시
-        self.time_label = QLabel("00:25:00")
-        self.time_label.setAlignment(Qt.AlignCenter)
-        self.time_label.setFont(QFont("맑은 고딕", 34, QFont.Bold))
-        self.time_label.setStyleSheet("""
+        page.setLayout(layout)
+        return page
+
+    def create_pomodoro_setting_page(self):
+        page = QWidget()
+        layout = QVBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        rule_label = QLabel(
+            "25분 집중 → 5분 짧은 휴식 → 4사이클 후 15분 긴 휴식"
+        )
+        rule_label.setAlignment(Qt.AlignCenter)
+        rule_label.setStyleSheet("""
             QLabel {
                 background:white;
-                color:#ff3b30;
-                border-radius:20px;
-                padding:20px;
+                border-radius:14px;
+                padding:12px;
+                color:#3a3a3c;
+                font-weight:bold;
             }
         """)
-        main_layout.addWidget(self.time_label)
 
-        # 진행률 표시
-        self.progress = QProgressBar()
-        self.progress.setValue(0)
-        self.progress.setTextVisible(False)
-        main_layout.addWidget(self.progress)
+        layout.addWidget(rule_label)
+        page.setLayout(layout)
+        return page
 
-        # 버튼 영역
-        button_layout = QHBoxLayout()
+    # ------------------------------------------------------------------------
+    # 일반 타이머/뽀모도로 전환
+    # ------------------------------------------------------------------------
+    def stop_before_switch(self):
+        self.timer.stop()
+        self.is_running = False
+        self.set_normal_inputs_enabled(True)
 
-        self.start_btn = QPushButton("시작")
-        self.pause_btn = QPushButton("일시정지")
-        self.reset_btn = QPushButton("초기화")
+    def switch_to_normal(self):
+        self.stop_before_switch()
+        self.timer_type = "normal"
+        self.setting_stack.setCurrentIndex(0)
 
-        self.start_btn.setStyleSheet("""
+        self.normal_mode_btn.setStyleSheet("""
             QPushButton { background:#007aff; }
-            QPushButton:hover { background:#3395ff; }
         """)
-        self.pause_btn.setStyleSheet("""
-            QPushButton { background:#ff9500; }
-            QPushButton:hover { background:#ffaa33; }
+        self.pomodoro_mode_btn.setStyleSheet("""
+            QPushButton { background:#8e8e93; }
         """)
-        self.reset_btn.setStyleSheet("""
+
+        self.next_btn.hide()
+        self.cycle_label.hide()
+        self.info_label.setText("시·분·초를 직접 설정하는 일반 집중 타이머")
+
+        self.update_normal_input_time()
+
+    def switch_to_pomodoro(self):
+        self.stop_before_switch()
+        self.timer_type = "pomodoro"
+        self.setting_stack.setCurrentIndex(1)
+
+        self.normal_mode_btn.setStyleSheet("""
+            QPushButton { background:#8e8e93; }
+        """)
+        self.pomodoro_mode_btn.setStyleSheet("""
             QPushButton { background:#ff3b30; }
-            QPushButton:hover { background:#ff5c52; }
         """)
 
-        self.start_btn.clicked.connect(self.start_timer)
-        self.pause_btn.clicked.connect(self.pause_timer)
-        self.reset_btn.clicked.connect(self.reset_timer)
+        self.next_btn.show()
+        self.cycle_label.show()
+        self.info_label.setText(
+            "집중이 끝나면 휴식으로, 휴식이 끝나면 다음 집중으로 전환됩니다."
+        )
 
-        button_layout.addWidget(self.start_btn)
-        button_layout.addWidget(self.pause_btn)
-        button_layout.addWidget(self.reset_btn)
+        self.reset_pomodoro_state()
+        self.update_display()
 
-        main_layout.addLayout(button_layout)
-        self.setLayout(main_layout)
+    # ------------------------------------------------------------------------
+    # 공통 제어
+    # ------------------------------------------------------------------------
+    def start_timer(self):
+        if self.remaining_seconds <= 0:
+            if self.timer_type == "pomodoro":
+                self.next_pomodoro_stage()
+            else:
+                QMessageBox.warning(
+                    self,
+                    "경고",
+                    "타이머 시간을 1초 이상 설정하세요."
+                )
+                return
 
-        # 입력값 변경 시 대기 화면 갱신
-        self.hour_spin.valueChanged.connect(self.update_input_time)
-        self.minute_spin.valueChanged.connect(self.update_input_time)
-        self.second_spin.valueChanged.connect(self.update_input_time)
+        self.is_running = True
 
-    def update_input_time(self):
-        """사용자가 입력한 시/분/초 값을 남은 시간에 반영"""
-        if self.is_running:
+        if self.timer_type == "normal":
+            self.set_normal_inputs_enabled(False)
+
+        self.timer.start(1000)
+
+    def pause_timer(self):
+        self.timer.stop()
+        self.is_running = False
+
+    def reset_timer(self):
+        self.timer.stop()
+        self.is_running = False
+
+        if self.timer_type == "normal":
+            self.set_normal_inputs_enabled(True)
+            self.update_normal_input_time()
+        else:
+            self.reset_pomodoro_state()
+            self.update_display()
+
+        self.progress.setValue(0)
+
+    def update_timer(self):
+        if self.remaining_seconds > 0:
+            self.remaining_seconds -= 1
+            self.update_display()
+
+        if self.remaining_seconds > 0:
+            return
+
+        self.timer.stop()
+        self.is_running = False
+
+        if self.timer_type == "normal":
+            self.set_normal_inputs_enabled(True)
+            QMessageBox.information(
+                self,
+                "타이머 종료",
+                "설정한 시간이 끝났습니다!"
+            )
+        else:
+            QMessageBox.information(
+                self,
+                "뽀모도로 알림",
+                self.get_pomodoro_finish_message()
+            )
+            self.next_pomodoro_stage()
+
+    # ------------------------------------------------------------------------
+    # 일반 타이머
+    # ------------------------------------------------------------------------
+    def set_normal_inputs_enabled(self, enabled):
+        self.hour_spin.setEnabled(enabled)
+        self.minute_spin.setEnabled(enabled)
+        self.second_spin.setEnabled(enabled)
+
+    def update_normal_input_time(self):
+        if self.timer_type != "normal" or self.is_running:
             return
 
         hours = self.hour_spin.value()
@@ -1921,71 +2109,113 @@ class TimerDialog(QDialog):
 
         self.total_seconds = hours * 3600 + minutes * 60 + seconds
         self.remaining_seconds = self.total_seconds
-
         self.update_display()
 
-    def start_timer(self):
-        """타이머 시작"""
-        if self.remaining_seconds <= 0:
-            QMessageBox.warning(
-                self,
-                "경고",
-                "타이머 시간을 1초 이상 설정하세요."
-            )
+    # ------------------------------------------------------------------------
+    # 뽀모도로
+    # ------------------------------------------------------------------------
+    def reset_pomodoro_state(self):
+        self.pomodoro_mode = "focus"
+        self.cycle_count = 1
+        self.total_seconds = self.focus_minutes * 60
+        self.remaining_seconds = self.total_seconds
+
+    def next_pomodoro_stage(self):
+        if self.timer_type != "pomodoro":
             return
 
-        self.is_running = True
-        self.hour_spin.setEnabled(False)
-        self.minute_spin.setEnabled(False)
-        self.second_spin.setEnabled(False)
-        self.timer.start(1000)
-
-    def pause_timer(self):
-        """타이머 일시정지"""
         self.timer.stop()
         self.is_running = False
 
-    def reset_timer(self):
-        """타이머 초기화"""
-        self.timer.stop()
-        self.is_running = False
+        if self.pomodoro_mode == "focus":
+            if self.cycle_count >= self.max_cycle:
+                self.pomodoro_mode = "long_break"
+                self.total_seconds = self.long_break_minutes * 60
+            else:
+                self.pomodoro_mode = "short_break"
+                self.total_seconds = self.short_break_minutes * 60
 
-        self.hour_spin.setEnabled(True)
-        self.minute_spin.setEnabled(True)
-        self.second_spin.setEnabled(True)
+        elif self.pomodoro_mode == "short_break":
+            self.cycle_count += 1
+            self.pomodoro_mode = "focus"
+            self.total_seconds = self.focus_minutes * 60
 
-        self.update_input_time()
-        self.progress.setValue(0)
+        else:  # long_break
+            self.cycle_count = 1
+            self.pomodoro_mode = "focus"
+            self.total_seconds = self.focus_minutes * 60
 
-    def update_timer(self):
-        """1초마다 남은 시간을 감소시키고 화면을 갱신"""
-        if self.remaining_seconds > 0:
-            self.remaining_seconds -= 1
-            self.update_display()
+        self.remaining_seconds = self.total_seconds
+        self.update_display()
 
-        if self.remaining_seconds <= 0:
-            self.timer.stop()
-            self.is_running = False
+    def get_pomodoro_finish_message(self):
+        if self.pomodoro_mode == "focus":
+            return "집중 시간이 끝났습니다. 휴식하세요!"
 
-            self.hour_spin.setEnabled(True)
-            self.minute_spin.setEnabled(True)
-            self.second_spin.setEnabled(True)
+        if self.pomodoro_mode == "short_break":
+            return "짧은 휴식이 끝났습니다. 다시 집중할 시간입니다!"
 
-            QMessageBox.information(
-                self,
-                "타이머 종료",
-                "설정한 시간이 끝났습니다!"
-            )
+        return "긴 휴식이 끝났습니다. 새로운 사이클을 시작하세요!"
 
+    # ------------------------------------------------------------------------
+    # 공통 화면 갱신
+    # ------------------------------------------------------------------------
     def update_display(self):
-        """남은 시간과 진행률 화면 갱신"""
         hours = self.remaining_seconds // 3600
         minutes = (self.remaining_seconds % 3600) // 60
         seconds = self.remaining_seconds % 60
 
-        self.time_label.setText(
-            f"{hours:02d}:{minutes:02d}:{seconds:02d}"
-        )
+        if self.timer_type == "normal":
+            self.status_label.setText("⏱ 일반 타이머")
+            time_color = "#007aff"
+            progress_color = "#34c759"
+            self.time_label.setText(
+                f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+            )
+        else:
+            if self.pomodoro_mode == "focus":
+                self.status_label.setText("🔥 집중 시간")
+                time_color = "#ff3b30"
+                progress_color = "#ff3b30"
+            elif self.pomodoro_mode == "short_break":
+                self.status_label.setText("☕ 짧은 휴식")
+                time_color = "#34c759"
+                progress_color = "#34c759"
+            else:
+                self.status_label.setText("🌙 긴 휴식")
+                time_color = "#007aff"
+                progress_color = "#007aff"
+
+            total_minutes = self.remaining_seconds // 60
+            self.time_label.setText(
+                f"{total_minutes:02d}:{seconds:02d}"
+            )
+            self.cycle_label.setText(
+                f"{self.cycle_count} / {self.max_cycle} 사이클"
+            )
+
+        self.time_label.setStyleSheet(f"""
+            QLabel {{
+                background:white;
+                color:{time_color};
+                border-radius:22px;
+                padding:22px;
+            }}
+        """)
+
+        self.progress.setStyleSheet(f"""
+            QProgressBar {{
+                border:none;
+                background:#e5e5ea;
+                border-radius:10px;
+                height:18px;
+            }}
+
+            QProgressBar::chunk {{
+                background:{progress_color};
+                border-radius:10px;
+            }}
+        """)
 
         if self.total_seconds > 0:
             progress_value = int(
@@ -1999,10 +2229,10 @@ class TimerDialog(QDialog):
 
 
 # ============================================================================
-# ReminderApp 메인 화면에 타이머 버튼 추가
+# ReminderApp 메인 화면에 통합 타이머 버튼 추가.
 # ============================================================================
-
 def open_focus_timer(self):
+    # 일반 타이머와 뽀모도로가 모두 들어 있는 하나의 창을 연다.
     dialog = TimerDialog(self)
     dialog.exec_()
 
@@ -2010,7 +2240,7 @@ def open_focus_timer(self):
 ReminderApp.open_focus_timer = open_focus_timer
 
 
-# 기존 init_ui를 보존한 뒤, 입력 카드 아래에 타이머 카드를 추가
+# 기존 init_ui를 보존한 뒤, 입력 카드 아래에 통합 타이머 카드를 추가
 original_init_ui_for_timer = ReminderApp.init_ui
 
 
@@ -2028,7 +2258,7 @@ def new_init_ui_for_timer(self):
     timer_layout = QHBoxLayout()
     timer_layout.setContentsMargins(22, 18, 22, 18)
 
-    timer_label = QLabel("⏱ 집중 타이머")
+    timer_label = QLabel("⏱ 집중 타이머 · 🍅 뽀모도로")
     timer_label.setFont(QFont("맑은 고딕", 18, QFont.Bold))
 
     timer_btn = QPushButton("타이머 열기")
