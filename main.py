@@ -746,29 +746,62 @@ class ReminderApp(QWidget):
         input_layout.addLayout(time_picker_layout)
 
         # --------------------------------------------------
-        # 4. 옵션 (중요도, 카테고리, 상태)
+        # 4. 설정 영역 (중요도, 카테고리, 상태) - 레이아웃 및 스타일 안정화
         # --------------------------------------------------
-        option_label = QLabel("💡 설정")
-        option_label.setFont(QFont("맑은 고딕", 10))
-        option_label.setStyleSheet("color:#8e8e93; margin-bottom:4px; margin-top:6px;")
-        input_layout.addWidget(option_label)
+        settings_container = QWidget()
+        settings_layout = QHBoxLayout(settings_container)
+        # 컨테이너 내부 여백을 주어 자식 컴포넌트가 가장자리에 붙지 않도록 함
+        settings_layout.setContentsMargins(12, 8, 12, 8)
+        settings_layout.setSpacing(16)
 
+        # ✅ QComboBox 공통 스타일 (폰트 크기 및 패딩을 박스 크기에 맞게 조정하여 배경색 문제 해결)
+        combo_style = """
+                            QComboBox {
+                                background-color: #f2f2f7;
+                                border: 1px solid #e5e5ea;
+                                border-radius: 10px;
+                                padding: 6px 14px; /* 텍스트와 테두리 사이 여백 확보 */
+                                font-size: 20px; /* 폰트 크기를 줄여 박스 내부가 꽉 차도록 수정 */
+                                color: #1c1c1e;
+                            }
+                            QComboBox::drop-down {
+                                border: none;
+                                width: 24px;
+                            }
+                        """
+
+        # 🔥 중요도
+        priority_col = QVBoxLayout()
+        priority_col.addWidget(QLabel("🔥 중요도"), alignment=Qt.AlignLeft)
         self.priority_input = QComboBox()
         self.priority_input.addItems(["낮음", "보통", "높음"])
+        self.priority_input.setStyleSheet(combo_style)
+        # 열을 세로 중앙에 맞춰 배치하여 상하 여백 발생 방지
+        priority_col.setAlignment(Qt.AlignVCenter)
+        priority_col.addWidget(self.priority_input)
+        settings_layout.addLayout(priority_col, 1)
+
+        # 📂 카테고리
+        category_col = QVBoxLayout()
+        category_col.addWidget(QLabel("📂 카테고리"), alignment=Qt.AlignLeft)
         self.category_input = QComboBox()
         self.category_input.addItems(["학업", "개인", "팀플", "업무"])
+        self.category_input.setStyleSheet(combo_style)
+        category_col.setAlignment(Qt.AlignVCenter)
+        category_col.addWidget(self.category_input)
+        settings_layout.addLayout(category_col, 1)
+
+        # ✅ 상태
+        status_col = QVBoxLayout()
+        status_col.addWidget(QLabel("✅ 상태"), alignment=Qt.AlignLeft)
         self.status_input = QComboBox()
         self.status_input.addItems(["진행 전", "진행 중", "완료"])
+        self.status_input.setStyleSheet(combo_style)
+        status_col.setAlignment(Qt.AlignVCenter)
+        status_col.addWidget(self.status_input)
+        settings_layout.addLayout(status_col, 1)
 
-        for w in [self.priority_input, self.category_input, self.status_input]:
-            w.setStyleSheet("""background:#f2f2f7; border:none; border-radius:12px; padding:8px;""")
-
-        options_layout = QHBoxLayout()
-        options_layout.setSpacing(10)
-        options_layout.addWidget(self.priority_input)
-        options_layout.addWidget(self.category_input)
-        options_layout.addWidget(self.status_input)
-        input_layout.addLayout(options_layout)
+        input_layout.addWidget(settings_container)
 
         # --------------------------------------------------
         # 5. 버튼 영역 (기존 유지)
