@@ -2330,6 +2330,54 @@ def new_add_or_update_for_checklist(self):
 
 ReminderApp.add_or_update_todo = new_add_or_update_for_checklist
 
+
+# ============================================================================
+# [추가 코드] 체크리스트 실시간 개수 카운트 (a/n) 표시 연동
+# ============================================================================
+
+def update_checklist_counter(widget):
+    """체크리스트의 총 개수(n)와 완료된 개수(a)를 계산하여 표시를 갱신합니다."""
+    checklist = widget.todo_data.get("checklist", [])
+    n = len(checklist)
+    a = sum(1 for item in checklist if item.get("checked", False))
+    widget.checklist_icon.setText(f" ✅ ({a}/{n})")
+
+
+# 1. 팝업창에서 '완료'를 눌렀을 때 카운터가 즉시 갱신되도록 함수 재정의
+def open_checklist_window(widget):
+    todo_data = widget.todo_data
+    if "checklist" not in todo_data:
+        todo_data["checklist"] = []
+
+    dialog = ChecklistDialog(
+        todo_data["title"],
+        todo_data["checklist"],
+        widget.window()
+    )
+
+    if dialog.exec_():
+        todo_data["checklist"] = dialog.get_items()
+        update_checklist_counter(widget)  # 데이터 저장 후 즉시 카운터 갱신
+        widget.window().auto_save_data()
+
+
+# 2. 처음 프로그램이 켜지거나 리스트가 갱신되어 카드가 생성될 때 초기 카운터 표시 래핑
+original_counter_init = TodoItemWidget.__init__
+
+
+def patched_todo_init_with_counter(self, todo_data, delete_callback, edit_callback):
+    # 이전 패치 기능(UI 배치 등)을 먼저 실행합니다.
+    original_counter_init(self, todo_data, delete_callback, edit_callback)
+    # 생성이 끝난 직후 처음 저장되어 있던 카운트(a/n)를 화면에 반영합니다.
+    update_checklist_counter(self)
+
+
+# 최종적으로 생성자 변경 적용
+TodoItemWidget.__init__ = patched_todo_init_with_counter
+
+# 최종적으로 생성자 변경 적용
+TodoItemWidget.__init__ = patched_todo_init_with_counter
+
 # ============================================
 # 실행
 # ============================================
