@@ -2497,24 +2497,26 @@ def new_add_or_update_for_checklist(self):
         "title": title,
         "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "deadline": deadline_str,
-        "start_time": start_str,  # ✅ 시작 시간 반드시 포함
+        "start_time": start_str,
         "priority": self.priority_input.currentText(),
         "category": self.category_input.currentText(),
         "status": self.status_input.currentText(),
         "completed": False,
         "memo": "",
-        "checklist": []
+        "checklist": []  # 기본값은 빈 리스트로 설정
     }
 
     if self.editing_todo is not None:
-        # 수정 모드
+        # ✅ 수정 모드일 때는 기존 체크리스트를 반드시 보존해야 합니다!
+        base_data["checklist"] = self.editing_todo.get("checklist", [])
+
         self.editing_todo.update(base_data)
         self.editing_todo = None
         self.add_btn.setText("추가")
     else:
-        # 신규 추가 모드
+        # ✅ 신규 추가일 때만 빈 체크리스트 적용
         self.todos.append(base_data)
-
+        
     self.clear_inputs()
     self.refresh_list()
     self.auto_save_data()
