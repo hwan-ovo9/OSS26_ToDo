@@ -2507,16 +2507,17 @@ def new_add_or_update_for_checklist(self):
     }
 
     if self.editing_todo is not None:
-        # ✅ 수정 모드일 때는 기존 체크리스트를 반드시 보존해야 합니다!
+        # 🛡️ 수정 모드 진입 시 기존 메모와 체크리스트를 반드시 보존하세요!
+        base_data["memo"] = self.editing_todo.get("memo", "")
         base_data["checklist"] = self.editing_todo.get("checklist", [])
 
         self.editing_todo.update(base_data)
         self.editing_todo = None
         self.add_btn.setText("추가")
     else:
-        # ✅ 신규 추가일 때만 빈 체크리스트 적용
+        # 신규 추가 모드일 때는 기존 데이터와 무관하게 빈 값 적용
         self.todos.append(base_data)
-        
+
     self.clear_inputs()
     self.refresh_list()
     self.auto_save_data()
