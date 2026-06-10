@@ -265,8 +265,9 @@ class TodoItemWidget(QFrame):
         self.progress.setValue(percent)
 
         self.progress.setTextVisible(False)
-
         self.progress.setFixedHeight(12)
+        # 창을 넓힐 때 자동으로 가로로 최대로 늘어나도록 설정
+        self.progress.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
 
         self.progress.setStyleSheet(f"""
         QProgressBar {{
