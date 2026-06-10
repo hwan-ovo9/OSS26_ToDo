@@ -229,16 +229,14 @@ class TodoItemWidget(QFrame):
 
         self.progress = QProgressBar()
 
-        try:
-
-            created = datetime.strptime(
-                todo_data["created_at"],
-                "%Y-%m-%d %H:%M:%S"
-            )
-
-        except:
-
-            created = datetime.now()
+        start_str = todo_data.get("start_time", "") or ""
+        if start_str and len(start_str) >= 5:
+            try:
+                created = datetime.strptime(start_str, "%Y-%m-%d %H:%M")
+            except ValueError:
+                created = datetime.strptime(todo_data["created_at"], "%Y-%m-%d %H:%M:%S")
+        else:
+            created = datetime.strptime(todo_data["created_at"], "%Y-%m-%d %H:%M:%S")
 
         deadline = datetime.strptime(
             todo_data["deadline"],
@@ -418,11 +416,13 @@ class TodoItemWidget(QFrame):
     def update_progress(self):
         try:
             start_str = self.todo_data.get("start_time", "") or ""
-
-            if not start_str.strip():
-                created = datetime.strptime(self.todo_data.get("created_at", ""), "%Y-%m-%d %H:%M:%S")
+            if start_str and len(start_str) >= 5:
+                try:
+                    created = datetime.strptime(start_str, "%Y-%m-%d %H:%M")
+                except ValueError:
+                    created = datetime.strptime(self.todo_data.get("created_at", ""), "%Y-%m-%d %H:%M:%S")
             else:
-                created = datetime.strptime(start_str, "%Y-%m-%d %H:%M")
+                created = datetime.strptime(self.todo_data.get("created_at", ""), "%Y-%m-%d %H:%M:%S")
 
             deadline = datetime.strptime(self.todo_data.get("deadline", ""), "%Y-%m-%d %H:%M")
             now = datetime.now()
