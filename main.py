@@ -772,28 +772,52 @@ class ReminderApp(QWidget):
         self.status_input = QComboBox()
         self.status_input.addItems(["진행 전", "진행 중", "완료"])
 
-        # 2️⃣ 카드의 흰색 배경과 자연스럽게 합쳐지도록 스타일 적용 (테두리/배경 투명화)
+        # 2. 카드의 흰색 배경과 자연스럽게 합쳐지도록 스타일 적용 (테두리/배경 투명화 & 드롭다운 검은 테두리 해결)
         combo_style = """
             QComboBox {
-                background: transparent; 
-                border: none; 
-                font-size: 24px; 
-                color: #1c1c1e; 
-                padding: 4px 6px; 
+                background-color: #f2f2f7; /* 부모와 동일한 연한 회색으로 고정하여 배경 새는 현상 차단 */
+                border: none;
+                border-radius: 10px;
+                padding: 6px 14px;
+                font-size: 25px; /* 콤보박스 내부 여백 고려해 적절히 조정 */
+                color: #1c1c1e;
+                font-weight:bold;
             }
-            QComboBox::drop-down { 
-                border: none; 
-                width: 20px; 
-                image: none; 
+            QComboBox::drop-down {
+                border: none;
+                width: 24px;
+                subcontrol-origin: padding;
+                subcontrol-position: center right;
             }
-            QComboBox::item { 
-                background: transparent; 
+            QComboBox::down-arrow {
+                image: none; /* 기본 화살표 제거 (원하시면 SVG 이미지로 교체 가능) */
+                border: none;
+                background: transparent;
+            }
+            /* ✅ 드롭다운 목록의 검은 테두리, 배경 새는 현상, 모서리 간극 완전 차단 */
+            QComboBox QAbstractItemView {
+                background-color: #ffffff;
+                border: 1px solid #e5e5ea;
+                border-radius: 10px;
+                outline: none;
+                padding: 4px;
+            }
+            QComboBox QAbstractItemView::item {
+                background-color: transparent;
+                color: #1c1c1e;
+                padding: 8px;
+                border-radius: 6px;
+                margin: 2px;
+            }
+            QComboBox QAbstractItemView::item:selected {
+                background-color: #007aff;
+                color: white;
             }
         """
         for combo in [self.priority_input, self.category_input, self.status_input]:
             combo.setStyleSheet(combo_style)
 
-        # 3️⃣ 가로 행 레이아웃 구성
+        # 3. 가로 행 레이아웃 구성
         settings_row_layout = QHBoxLayout()
         settings_row_layout.setSpacing(28)
         settings_row_layout.setContentsMargins(0, 6, 0, 0)  # 카드 내부 상단 여백만 확보
