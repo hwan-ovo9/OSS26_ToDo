@@ -620,7 +620,7 @@ class ReminderApp(QWidget):
             "완료됨": False
         }
 
-        self.setWindowTitle("Reminder")
+        self.setWindowTitle("→ TO-DO")
 
         self.resize(980, 760)
 
