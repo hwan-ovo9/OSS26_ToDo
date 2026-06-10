@@ -476,7 +476,7 @@ class TodoItemWidget(QFrame):
                 parts = []
 
                 if years > 0: parts.append(f"{years}년")
-                if months > 0: parts.append(f"{months}월")
+                if months > 0: parts.append(f"{months}개월")
                 if days > 0: parts.append(f"{days}일")
                 if hours > 0: parts.append(f"{hours}시간")
                 if minutes > 0: parts.append(f"{minutes}분")
