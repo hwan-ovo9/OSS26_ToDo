@@ -298,12 +298,12 @@ class TodoItemWidget(QFrame):
             days %= 30
 
             parts = []
-            if years > 0: parts.append(f"{years} 년")
-            if months > 0: parts.append(f"{months} 월")
-            if days > 0: parts.append(f"{days} 일")
-            if hours > 0: parts.append(f"{hours} 시간")
-            if minutes > 0: parts.append(f"{minutes} 분")
-            if seconds > 0: parts.append(f"{seconds} 초")
+            if years > 0: parts.append(f"{years}년")
+            if months > 0: parts.append(f"{months}개월")
+            if days > 0: parts.append(f"{days}일")
+            if hours > 0: parts.append(f"{hours}시간")
+            if minutes > 0: parts.append(f"{minutes}분")
+            if seconds > 0: parts.append(f"{seconds}초")
 
             remain_text = f"⏰ {' '.join(parts)} 남음" if parts else "⏰ 마감 임박"
 
