@@ -172,30 +172,10 @@ class TodoItemWidget(QFrame):
             background:#f2f2f7; color:#3a3a3c; border-radius:10px; padding:6px 12px; font-size:15px; font-weight:600;
         """
 
-        # 메타 정보 태그 레이아웃
+        # ✅ 1. 메타 정보 태그 생성 (중복 제거 & 안정화)
         meta_layout = QHBoxLayout()
         meta_layout.setSpacing(8)
 
-        # 안전하게 데이터 추출 (누락 대비 기본값 부여)
-        date_val = todo_data.get("deadline", "")
-        priority_val = todo_data.get("priority", "보통")
-        category_val = todo_data.get("category", "개인")
-        status_val = todo_data.get("status", "진행 전")
-
-        date_label = QLabel(f'📅 {date_val}')
-        priority_icon = {"높음": "🔥", "보통": "⭐", "낮음": "🌱"}
-        priority_label = QLabel(f'{priority_icon.get(priority_val, "⭐")} {priority_val}')
-        category_label = QLabel(f'📁 {category_val}')
-        status_icon = {"진행 전": "🕓", "진행 중": "⏳", "완료": "✅", "지연": "🚨"}
-        status_label = QLabel(f'{status_icon.get(status_val, "🕓")} {status_val}')
-
-        # ============================================
-        # ✅ 2. 메타 정보 태그 레이아웃 생성
-        # ============================================
-        meta_layout = QHBoxLayout()
-        meta_layout.setSpacing(8)
-
-        # 안전하게 데이터 추출 (누락 대비 기본값 부여)
         date_val = str(todo_data.get("deadline", ""))
         priority_val = todo_data.get("priority", "보통")
         category_val = todo_data.get("category", "개인")
@@ -208,11 +188,11 @@ class TodoItemWidget(QFrame):
         status_icon = {"진행 전": "🕓", "진행 중": "⏳", "완료": "✅", "지연": "🚨"}
         status_label = QLabel(f'{status_icon.get(status_val, "🕓")} {status_val}')
 
-        # 시작 시간 태그 (안전하게 읽기)
-        start_time_val = todo_data.get("start_time", "")
-        if start_time_val and len(start_time_val) >= 5:
-            start_tag = QLabel(f'🕐 {start_time_val[:16]}')
-            start_tag.setStyleSheet(tag_style)  # 이제 미리 정의되어 안전하게 호출됨
+        # ✅ 시작 시간 태그 (문자열 공백 제거 후 길이 체크)
+        start_time_raw = str(todo_data.get("start_time", "")).strip()
+        if len(start_time_raw) >= 5:
+            start_tag = QLabel(f'🕐 {start_time_raw[:16]}')
+            start_tag.setStyleSheet(tag_style)
             meta_layout.addWidget(start_tag)
 
         for tag in [date_label, priority_label, category_label, status_label]:
@@ -2480,34 +2460,49 @@ def new_init_for_checklist(self, todo_data, delete_callback, edit_callback):
 
 TodoItemWidget.__init__ = new_init_for_checklist
 
-# 데이터 저장 공간 보장 오버라이딩 패치
+# 데이터 저장 공간 보장 오버라이딩 패치 (완전 복구형)
 original_add_or_update_for_checklist = ReminderApp.add_or_update_todo
 
 
 def new_add_or_update_for_checklist(self):
     title = self.title_input.text().strip()
-    if title and self.editing_todo is None:
-        todo_data = {
-            "title": title,
-            "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "deadline": self.date_input.date().toString("yyyy-MM-dd") + " " + self.selected_time.toString("HH:mm"),
-            "priority": self.priority_input.currentText(),
-            "category": self.category_input.currentText(),
-            "status": self.status_input.currentText(),
-            "completed": False,
-            "memo": "",
-            "checklist": []
-        }
-        self.todos.append(todo_data)
-        self.clear_inputs()
-        self.refresh_list()
-        self.auto_save_data()
+    if not title:
+        QMessageBox.warning(self, "경고", "할 일을 입력하세요.")
+        return
+
+    # 👇 시작/마감 시간 포맷을 표준 문자열로 미리 생성
+    start_str = f"{self.start_date_input.date().toString('yyyy-MM-dd')} {self.selected_start_time.toString('HH:mm')}"
+    deadline_str = f"{self.date_input.date().toString('yyyy-MM-dd')} {self.selected_time.toString('HH:mm')}"
+
+    # 기본 데이터 구조
+    base_data = {
+        "title": title,
+        "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "deadline": deadline_str,
+        "start_time": start_str,  # ✅ 시작 시간 반드시 포함
+        "priority": self.priority_input.currentText(),
+        "category": self.category_input.currentText(),
+        "status": self.status_input.currentText(),
+        "completed": False,
+        "memo": "",
+        "checklist": []
+    }
+
+    if self.editing_todo is not None:
+        # 수정 모드
+        self.editing_todo.update(base_data)
+        self.editing_todo = None
+        self.add_btn.setText("추가")
     else:
-        original_add_or_update_for_checklist(self)
+        # 신규 추가 모드
+        self.todos.append(base_data)
+
+    self.clear_inputs()
+    self.refresh_list()
+    self.auto_save_data()
 
 
 ReminderApp.add_or_update_todo = new_add_or_update_for_checklist
-
 
 # ============================================================================
 # [추가 코드] 체크리스트 실시간 개수 카운트 (a/n) 표시 연동
