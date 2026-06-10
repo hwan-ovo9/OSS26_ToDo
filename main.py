@@ -282,25 +282,32 @@ class TodoItemWidget(QFrame):
         }}
         """)
 
+        # ✅ 기존 남은 기간 계산 로직 전체 교체
         if remain_seconds <= 0:
-
             remain_text = "🚨 마감 초과"
-
         else:
+            days = int(remain_seconds // (3600 * 24))
+            hours = int((remain_seconds % (3600 * 24)) // 3600)
+            minutes = int((remain_seconds % 3600) // 60)
+            seconds = int(remain_seconds % 60)
 
-            hours = int(remain_seconds // 3600)
-            minutes = int(
-                (remain_seconds % 3600) // 60
-            )
+            # ✅ 년/월 단위 계산 (UI 정렬을 위해 1년=365일, 1월=30일 기준)
+            years = days // 365
+            days %= 365
+            months = days // 30
+            days %= 30
 
-            remain_text = (
-                f"⏰ {hours}시간 "
-                f"{minutes}분 남음"
-            )
+            parts = []
+            if years > 0: parts.append(f"{years} 년")
+            if months > 0: parts.append(f"{months} 월")
+            if days > 0: parts.append(f"{days} 일")
+            if hours > 0: parts.append(f"{hours} 시간")
+            if minutes > 0: parts.append(f"{minutes} 분")
+            if seconds > 0: parts.append(f"{seconds} 초")
 
-        self.countdown_label = QLabel(
-            remain_text
-        )
+            remain_text = f"⏰ {' '.join(parts)} 남음" if parts else "⏰ 마감 임박"
+
+        self.countdown_label = QLabel(remain_text)
 
         self.countdown_label.setStyleSheet("""
             color:#8e8e93;
@@ -453,12 +460,31 @@ class TodoItemWidget(QFrame):
                 self.status_tag.setText("✅ 완료")
                 self.countdown_label.setText("⏰ 마감 완료")
 
+
             else:
-                # 마감 이전 정상 진행 중 상태
-                hours = int(remain_seconds // 3600)
+                # ✅ 마감 이전 정상 진행 중 상태 (년/월/일/시/분/초 세분화)
+                days = int(remain_seconds // (3600 * 24))
+                hours = int((remain_seconds % (3600 * 24)) // 3600)
                 minutes = int((remain_seconds % 3600) // 60)
-                second = int((remain_seconds % 3600) % 60)
-                self.countdown_label.setText(f"⏰ {hours}시간 {minutes}분 {second}초 남음")
+                seconds = int(remain_seconds % 60)
+
+                # ✅ UI 가독성을 위해 근사 계산 적용 (1년=365일, 1월=30일 기준)
+                years = days // 365
+                days %= 365
+                months = days // 30
+                days %= 30
+                parts = []
+
+                if years > 0: parts.append(f"{years}년")
+                if months > 0: parts.append(f"{months}월")
+                if days > 0: parts.append(f"{days}일")
+                if hours > 0: parts.append(f"{hours}시간")
+                if minutes > 0: parts.append(f"{minutes}분")
+                if seconds > 0: parts.append(f"{seconds}초")
+
+                self.countdown_label.setText(
+                    f"⏰ {' '.join(parts)} 남음" if parts else "⏰ 마감 임박"
+                )
 
             if percent > 60:
                 card_bg = "#ffffff"
