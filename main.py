@@ -186,7 +186,7 @@ class TodoItemWidget(QFrame):
         priority_label = QLabel(f'{priority_icon.get(priority_val, "⭐")} {priority_val}')
         category_label = QLabel(f'📁 {category_val}')
         status_icon = {"진행 전": "🕓", "진행 중": "⏳", "완료": "✅", "지연": "🚨"}
-        status_label = QLabel(f'{status_icon.get(status_val, "🕓")} {status_val}')
+        self.status_tag = QLabel(f'{status_icon.get(status_val, "🕓")} {status_val}')
 
         # ✅ 시작 시간 태그 (문자열 공백 제거 후 길이 체크)
         start_time_raw = str(todo_data.get("start_time", "")).strip()
@@ -195,7 +195,8 @@ class TodoItemWidget(QFrame):
             start_tag.setStyleSheet(tag_style)
             meta_layout.addWidget(start_tag)
 
-        for tag in [date_label, priority_label, category_label, status_label]:
+        # ⬇️ 리스트 내부의 status_label을 self.status_tag로 변경
+        for tag in [date_label, priority_label, category_label, self.status_tag]:
             tag.setStyleSheet(tag_style)
             meta_layout.addWidget(tag)
 
@@ -433,9 +434,26 @@ class TodoItemWidget(QFrame):
             self.progress.setStyleSheet(
                 f"""QProgressBar {{ border:none; background:#e5e5ea; border-radius:6px; }} QProgressBar::chunk {{ background:{color}; border-radius:6px; }} """)
 
-            if remain_seconds <= 0:
+            # ✅ 실시간 마감 감지 및 '지연' 태그 자동 변경 (1초 단위 실행)
+            if remain_seconds <= 0 and not self.check.isChecked():
+                # 상태가 처음으로 '지연'으로 바뀔 때만 데이터베이스 저장하여 I/O 과부하 방지
+                if self.todo_data.get("status") != "지연":
+                    self.todo_data["status"] = "지연"
+                    self.window().auto_save_data()
+
+                self.status_tag.setText("🚨 지연")
                 self.countdown_label.setText("🚨 마감 초과")
+
+            elif self.check.isChecked():
+                # 완료 체크 시 상태 즉시 반영 (타이머에서 중복 저장 방지용)
+                if self.todo_data.get("status") != "완료":
+                    self.todo_data["status"] = "완료"
+                    self.window().auto_save_data()
+                self.status_tag.setText("✅ 완료")
+                self.countdown_label.setText("⏰ 마감 완료")
+
             else:
+                # 마감 이전 정상 진행 중 상태
                 hours = int(remain_seconds // 3600)
                 minutes = int((remain_seconds % 3600) // 60)
                 second = int((remain_seconds % 3600) % 60)
